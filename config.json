@@ -27,7 +27,11 @@
     "floats": {
       "id": "floats",
       "label": "Floats",
-      "contestants": [],
+      "contestants": [
+        { "id": 1, "name": "De Pasagers" },
+        { "id": 2, "name": "De Sparrebos" },
+        { "id": 3, "name": "De Maanblotters" }
+      ],
       "categories": ["entertainment", "kostumering", "carnavalesk"],
       "allowedScores": [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     }
