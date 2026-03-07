@@ -11,6 +11,33 @@ const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 const STATE_PATH = path.join(__dirname, '..', 'state.json');
 let config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
 
+// Ensure config uses multi-scoring structure; if not, migrate in-memory
+if (!config.scorings) {
+  const legacyCategories = config.categories || ['entertainment', 'kostumering', 'carnavalesk'];
+  const legacyContestants = config.contestants || [];
+  const legacyAllowed = Array.isArray(config.allowedScores) && config.allowedScores.length
+    ? config.allowedScores.map(Number)
+    : [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+  config.scorings = {
+    groups: {
+      id: 'groups',
+      label: 'Groups',
+      contestants: legacyContestants,
+      categories: legacyCategories,
+      allowedScores: legacyAllowed,
+    },
+    floats: {
+      id: 'floats',
+      label: 'Floats',
+      contestants: [],
+      categories: legacyCategories,
+      allowedScores: legacyAllowed,
+    },
+  };
+  config.defaultScoring = config.defaultScoring || 'groups';
+}
+
 // Load persisted scoring state if present (scores, locks, zeroed flags)
 let persistedState = { scores: {}, locks: {}, zeroed: {} };
 try {
@@ -23,6 +50,16 @@ try {
   persistedState = { scores: {}, locks: {}, zeroed: {} };
 }
 
+// Migrate legacy (no scoring dimension) state into default scoring if needed
+if (persistedState && persistedState.scores && !Object.values(persistedState.scores)[0]?.groups) {
+  const defaultScoringKey = config.defaultScoring || 'groups';
+  const migrated = { scores: {}, locks: {}, zeroed: {} };
+  migrated.scores[defaultScoringKey] = persistedState.scores || {};
+  migrated.locks[defaultScoringKey] = persistedState.locks || {};
+  migrated.zeroed[defaultScoringKey] = persistedState.zeroed || {};
+  persistedState = migrated;
+}
+
 function saveState() {
   try {
     fs.writeFileSync(STATE_PATH, JSON.stringify(persistedState, null, 2), 'utf8');
@@ -31,40 +68,46 @@ function saveState() {
   }
 }
 
-function getAllowedScores() {
-  return Array.isArray(config.allowedScores) && config.allowedScores.length
-    ? config.allowedScores.map(Number)
-    : [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-}
-
-// Convenience getters
-function getCategories() {
-  return config.categories || ['entertainment', 'kostumering', 'carnavalesk'];
-}
-
 function getJudges() {
   return config.judges || [];
 }
 
-function getContestants() {
-  return config.contestants || [];
+function getScoringIds() {
+  return Object.keys(config.scorings || {});
 }
 
-const CATEGORIES = getCategories();
-const JUDGES = getJudges();
-const CONTESTANTS = getContestants();
+function getScoringConfig(scoringId) {
+  const scorings = config.scorings || {};
+  const effectiveId = scoringId && scorings[scoringId] ? scoringId : (config.defaultScoring || Object.keys(scorings)[0]);
+  const cfg = scorings[effectiveId];
+  if (!cfg) {
+    throw new Error(`Unknown scoring: ${scoringId}`);
+  }
+  return { id: effectiveId, ...cfg };
+}
 
-// Scores are stored as: scores[category][judgeId][contestantId] = points
-const scores = {};
-// Lock state: locks[category][judgeId] = true/false
-const locks = {};
-// Zero overrides: zeroed[category][contestantId] = true (disqualify for all judges in that category)
+const JUDGES = getJudges();
+const SCORING_IDS = getScoringIds();
+
+// Scores are stored as: scores[scoringId][category][judgeId][contestantId] = points
+const scores = persistedState.scores || {};
+// Lock state: locks[scoringId][category][judgeId] = true/false
+const locks = persistedState.locks || {};
+// Zero overrides: zeroed[scoringId][category][contestantId] = true (disqualify for all judges in that category)
 const zeroed = persistedState.zeroed || {};
 
-for (const cat of CATEGORIES) {
-  scores[cat] = persistedState.scores && persistedState.scores[cat] ? persistedState.scores[cat] : {};
-  locks[cat] = persistedState.locks && persistedState.locks[cat] ? persistedState.locks[cat] : {};
-  if (!zeroed[cat]) zeroed[cat] = {};
+// Ensure all structures exist for known scorings
+for (const scoringId of SCORING_IDS) {
+  const scoringCfg = getScoringConfig(scoringId);
+  if (!scores[scoringId]) scores[scoringId] = {};
+  if (!locks[scoringId]) locks[scoringId] = {};
+  if (!zeroed[scoringId]) zeroed[scoringId] = {};
+
+  for (const cat of scoringCfg.categories || []) {
+    if (!scores[scoringId][cat]) scores[scoringId][cat] = {};
+    if (!locks[scoringId][cat]) locks[scoringId][cat] = {};
+    if (!zeroed[scoringId][cat]) zeroed[scoringId][cat] = {};
+  }
 }
 
 // Keep persistedState references pointing at live objects
@@ -75,13 +118,24 @@ persistedState.zeroed = zeroed;
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Simple API to fetch configuration (judges, contestants, categories)
+// Simple API to fetch configuration (judges, scorings, categories, contestants)
 app.get('/api/config', (req, res) => {
+  const scoringsPayload = {};
+  for (const scoringId of SCORING_IDS) {
+    const s = getScoringConfig(scoringId);
+    scoringsPayload[scoringId] = {
+      id: s.id,
+      label: s.label || s.id,
+      categories: s.categories || [],
+      contestants: s.contestants || [],
+      allowedScores: (s.allowedScores || [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]).map(Number),
+    };
+  }
+
   res.json({
-    CATEGORIES,
     JUDGES,
-    CONTESTANTS,
-    allowedScores: getAllowedScores(),
+    scorings: scoringsPayload,
+    defaultScoring: config.defaultScoring || SCORING_IDS[0],
   });
 });
 
@@ -93,9 +147,13 @@ app.get('/admin/config', (req, res) => {
 // Admin API to update config JSON
 app.post('/admin/config', (req, res) => {
   const next = req.body;
-  if (!next || !Array.isArray(next.judges) || !Array.isArray(next.contestants)) {
-    return res.status(400).json({ error: 'Config must include judges[] and contestants[]' });
+  if (!next || !Array.isArray(next.judges)) {
+    return res.status(400).json({ error: 'Config must include judges[]' });
   }
+  if (!next.scorings || typeof next.scorings !== 'object') {
+    return res.status(400).json({ error: 'Config must include scorings{} with groups/floats, etc.' });
+  }
+
   try {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2), 'utf8');
     config = next;
@@ -106,44 +164,64 @@ app.post('/admin/config', (req, res) => {
   }
 });
 
-// Get lock status for a judge/category
+// Get lock status for a judge/category within a scoring
 app.get('/api/lock', (req, res) => {
-  const { category, judgeId } = req.query || {};
-  if (!CATEGORIES.includes(category)) {
+  const { scoring, category, judgeId } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (!scoringCfg.categories.includes(category)) {
     return res.status(400).json({ error: 'Invalid category' });
   }
   const judge = JUDGES.find((j) => j.id === Number(judgeId));
   if (!judge) {
     return res.status(400).json({ error: 'Invalid judge' });
   }
-  const locked = !!locks[category][judge.id];
+  const locked = !!(locks[scoringCfg.id] && locks[scoringCfg.id][category] && locks[scoringCfg.id][category][judge.id]);
   res.json({ locked });
 });
 
-// Admin: set or clear zero override for a group in a category (0 = disabled for all judges)
+// Admin: set or clear zero override for a contestant in a scoring/category (0 = disabled for all judges)
 app.post('/admin/zero', (req, res) => {
-  const { category, contestantId, zero } = req.body || {};
-  if (!CATEGORIES.includes(category)) {
+  const { scoring, category, contestantId, zero } = req.body || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (!scoringCfg.categories.includes(category)) {
     return res.status(400).json({ error: 'Invalid category' });
   }
-  const contestant = CONTESTANTS.find((c) => c.id === Number(contestantId));
+  const contestant = (scoringCfg.contestants || []).find((c) => c.id === Number(contestantId));
   if (!contestant) {
     return res.status(400).json({ error: 'Invalid contestant' });
   }
-  if (!zeroed[category]) zeroed[category] = {};
+  if (!zeroed[scoringCfg.id]) zeroed[scoringCfg.id] = {};
+  if (!zeroed[scoringCfg.id][category]) zeroed[scoringCfg.id][category] = {};
+
   if (zero) {
-    zeroed[category][contestant.id] = true;
+    zeroed[scoringCfg.id][category][contestant.id] = true;
   } else {
-    delete zeroed[category][contestant.id];
+    delete zeroed[scoringCfg.id][category][contestant.id];
   }
   saveState();
-  res.json({ ok: true, zeroed: !!zeroed[category][contestant.id] });
+  res.json({ ok: true, zeroed: !!zeroed[scoringCfg.id][category][contestant.id] });
 });
 
-// Set lock status for a judge/category
+// Set lock status for a judge/category within a scoring
 app.post('/api/lock', (req, res) => {
-  const { category, judgeId, locked } = req.body || {};
-  if (!CATEGORIES.includes(category)) {
+  const { scoring, category, judgeId, locked } = req.body || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (!scoringCfg.categories.includes(category)) {
     return res.status(400).json({ error: 'Invalid category' });
   }
   const judge = JUDGES.find((j) => j.id === Number(judgeId));
@@ -155,8 +233,8 @@ app.post('/api/lock', (req, res) => {
 
   if (wantLocked) {
     // Only allow locking if this judge has scored all contestants in this category.
-    const judgeScores = scores[category][judge.id] || {};
-    const missing = CONTESTANTS.filter((c) => typeof judgeScores[c.id] !== 'number');
+    const judgeScores = (scores[scoringCfg.id] && scores[scoringCfg.id][category] && scores[scoringCfg.id][category][judge.id]) || {};
+    const missing = (scoringCfg.contestants || []).filter((c) => typeof judgeScores[c.id] !== 'number');
     if (missing.length > 0) {
       return res.status(400).json({
         error: `You must score all groups before locking. Missing: ${missing
@@ -166,21 +244,31 @@ app.post('/api/lock', (req, res) => {
     }
   }
 
-  locks[category][judge.id] = wantLocked;
+  if (!locks[scoringCfg.id]) locks[scoringCfg.id] = {};
+  if (!locks[scoringCfg.id][category]) locks[scoringCfg.id][category] = {};
+
+  locks[scoringCfg.id][category][judge.id] = wantLocked;
   saveState();
-  return res.json({ ok: true, locked: locks[category][judge.id] });
+  return res.json({ ok: true, locked: locks[scoringCfg.id][category][judge.id] });
 });
 
-// API to submit a score for one judge / category / contestant
+// API to submit a score for one judge / category / contestant within a scoring
 app.post('/api/score', (req, res) => {
-  const { category, judgeId, contestantId, points } = req.body || {};
+  const { scoring, category, judgeId, contestantId, points } = req.body || {};
 
-  if (!CATEGORIES.includes(category)) {
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (!scoringCfg.categories.includes(category)) {
     return res.status(400).json({ error: 'Invalid category' });
   }
   const judge = JUDGES.find((j) => j.id === Number(judgeId));
-  const contestant = CONTESTANTS.find((c) => c.id === Number(contestantId));
-  const allowedScores = getAllowedScores();
+  const contestant = (scoringCfg.contestants || []).find((c) => c.id === Number(contestantId));
+  const allowedScores = (scoringCfg.allowedScores || [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]).map(Number);
 
   if (!judge || !contestant) {
     return res.status(400).json({ error: 'Invalid judge or contestant' });
@@ -189,20 +277,22 @@ app.post('/api/score', (req, res) => {
     return res.status(400).json({ error: 'Invalid points' });
   }
 
-  if (locks[category][judge.id]) {
+  if (locks[scoringCfg.id] && locks[scoringCfg.id][category] && locks[scoringCfg.id][category][judge.id]) {
     return res.status(400).json({ error: 'Scores are locked for this category for this judge.' });
   }
 
-  if (zeroed[category] && zeroed[category][contestant.id]) {
+  if (zeroed[scoringCfg.id] && zeroed[scoringCfg.id][category] && zeroed[scoringCfg.id][category][contestant.id]) {
     return res.status(400).json({ error: 'This group is set to 0 for this category and cannot be scored.' });
   }
 
-  if (!scores[category][judge.id]) {
-    scores[category][judge.id] = {};
+  if (!scores[scoringCfg.id]) scores[scoringCfg.id] = {};
+  if (!scores[scoringCfg.id][category]) scores[scoringCfg.id][category] = {};
+  if (!scores[scoringCfg.id][category][judge.id]) {
+    scores[scoringCfg.id][category][judge.id] = {};
   }
 
   // Enforce: each score value can only be used once per judge per category.
-  const usedForJudge = scores[category][judge.id];
+  const usedForJudge = scores[scoringCfg.id][category][judge.id];
   for (const [cid, p] of Object.entries(usedForJudge)) {
     if (Number(p) === Number(points) && Number(cid) !== Number(contestant.id)) {
       return res.status(400).json({ error: `Judge ${judge.id} has already used score ${points} in ${category}.` });
@@ -215,24 +305,34 @@ app.post('/api/score', (req, res) => {
   return res.json({ ok: true });
 });
 
-// API to get totals by category + overall
+// API to get totals by category + overall for a scoring
 app.get('/admin/totals', (req, res) => {
-  const allowedScores = getAllowedScores();
+  const { scoring } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 
   const categoryTotals = {};
   const overallTotals = {};
 
-  for (const cat of CATEGORIES) {
+  for (const cat of scoringCfg.categories || []) {
     categoryTotals[cat] = {};
-    for (const contestant of CONTESTANTS) {
+    for (const contestant of scoringCfg.contestants || []) {
       let sum = 0;
       // If zero override is set, this category contributes 0 for this contestant.
-      const isZeroed = zeroed[cat] && zeroed[cat][contestant.id];
+      const isZeroed = zeroed[scoringCfg.id]
+        && zeroed[scoringCfg.id][cat]
+        && zeroed[scoringCfg.id][cat][contestant.id];
       if (!isZeroed) {
-        // scores stored as scores[cat][judgeId][contestantId]
+        // scores stored as scores[scoringId][cat][judgeId][contestantId]
         for (const judge of JUDGES) {
-          const map = scores[cat][judge.id] || {};
-          if (typeof map[contestant.id] === 'number') {
+          const map = scores[scoringCfg.id]
+            && scores[scoringCfg.id][cat]
+            && scores[scoringCfg.id][cat][judge.id];
+          if (map && typeof map[contestant.id] === 'number') {
             sum += map[contestant.id];
           }
         }
@@ -243,11 +343,12 @@ app.get('/admin/totals', (req, res) => {
   }
 
   res.json({
-    categories: CATEGORIES,
-    contestants: CONTESTANTS,
+    scoring: scoringCfg.id,
+    scoringLabel: scoringCfg.label || scoringCfg.id,
+    categories: scoringCfg.categories || [],
+    contestants: scoringCfg.contestants || [],
     categoryTotals,
     overallTotals,
-    allowedScores,
   });
 });
 

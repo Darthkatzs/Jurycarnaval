@@ -1,15 +1,20 @@
 const judgeSelect = document.getElementById('judge-select');
+const scoringSelect = document.getElementById('scoring-select');
 const categorySelect = document.getElementById('category-select');
 const contestantsEl = document.getElementById('contestants');
 const statusEl = document.getElementById('status');
 const lockToggleBtn = document.getElementById('lock-toggle');
 
 let config = null;
+let currentScoringId = null;
 let currentJudgeId = null;
 let currentCategory = null;
-let usedScores = {}; // usedScores[category][judgeId] = Set of points used
-let selectedScores = {}; // selectedScores[category][judgeId][contestantId] = points
-let lockState = {}; // lockState[category][judgeId] = boolean
+// usedScores[scoringId][category][judgeId] = Set of points used
+let usedScores = {};
+// selectedScores[scoringId][category][judgeId][contestantId] = points
+let selectedScores = {};
+// lockState[scoringId][category][judgeId] = boolean
+let lockState = {};
 
 async function loadConfig() {
   const res = await fetch('/api/config');
@@ -29,15 +34,21 @@ async function loadConfig() {
   });
   currentJudgeId = config.JUDGES[0]?.id;
 
-  // Populate categories
-  categorySelect.innerHTML = '';
-  config.CATEGORIES.forEach((cat) => {
+  // Populate scorings
+  scoringSelect.innerHTML = '';
+  const scoringIds = Object.keys(config.scorings || {});
+  scoringIds.forEach((id) => {
+    const s = config.scorings[id];
     const opt = document.createElement('option');
-    opt.value = cat;
-    opt.textContent = labelForCategory(cat);
-    categorySelect.appendChild(opt);
+    opt.value = id;
+    opt.textContent = s.label || id;
+    scoringSelect.appendChild(opt);
   });
-  currentCategory = config.CATEGORIES[0];
+  currentScoringId = config.defaultScoring || scoringIds[0];
+  scoringSelect.value = currentScoringId;
+
+  // Populate categories for current scoring
+  repopulateCategories();
 
   refreshLockState().then(renderContestants).catch((err) => {
     console.error(err);
@@ -57,30 +68,47 @@ function status(msg, isError = false) {
   statusEl.classList.toggle('error', !!isError);
 }
 
-function getUsedScoresSet(category, judgeId) {
-  if (!usedScores[category]) usedScores[category] = {};
-  if (!usedScores[category][judgeId]) usedScores[category][judgeId] = new Set();
-  return usedScores[category][judgeId];
+function repopulateCategories() {
+  if (!config || !currentScoringId) return;
+  const scoring = config.scorings[currentScoringId];
+  if (!scoring) return;
+  categorySelect.innerHTML = '';
+  (scoring.categories || []).forEach((cat) => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = labelForCategory(cat);
+    categorySelect.appendChild(opt);
+  });
+  currentCategory = scoring.categories?.[0] || null;
 }
 
-function getSelectedScores(category, judgeId) {
-  if (!selectedScores[category]) selectedScores[category] = {};
-  if (!selectedScores[category][judgeId]) selectedScores[category][judgeId] = {};
-  return selectedScores[category][judgeId];
+function getUsedScoresSet(scoringId, category, judgeId) {
+  if (!usedScores[scoringId]) usedScores[scoringId] = {};
+  if (!usedScores[scoringId][category]) usedScores[scoringId][category] = {};
+  if (!usedScores[scoringId][category][judgeId]) usedScores[scoringId][category][judgeId] = new Set();
+  return usedScores[scoringId][category][judgeId];
 }
 
-function isLocked(category, judgeId) {
-  return !!(lockState[category] && lockState[category][judgeId]);
+function getSelectedScores(scoringId, category, judgeId) {
+  if (!selectedScores[scoringId]) selectedScores[scoringId] = {};
+  if (!selectedScores[scoringId][category]) selectedScores[scoringId][category] = {};
+  if (!selectedScores[scoringId][category][judgeId]) selectedScores[scoringId][category][judgeId] = {};
+  return selectedScores[scoringId][category][judgeId];
+}
+
+function isLocked(scoringId, category, judgeId) {
+  return !!(lockState[scoringId] && lockState[scoringId][category] && lockState[scoringId][category][judgeId]);
 }
 
 async function refreshLockState() {
-  if (!currentCategory || !currentJudgeId) return;
+  if (!currentScoringId || !currentCategory || !currentJudgeId) return;
   try {
-    const res = await fetch(`/api/lock?category=${encodeURIComponent(currentCategory)}&judgeId=${encodeURIComponent(currentJudgeId)}`);
+    const res = await fetch(`/api/lock?scoring=${encodeURIComponent(currentScoringId)}&category=${encodeURIComponent(currentCategory)}&judgeId=${encodeURIComponent(currentJudgeId)}`);
     if (!res.ok) return;
     const data = await res.json();
-    if (!lockState[currentCategory]) lockState[currentCategory] = {};
-    lockState[currentCategory][currentJudgeId] = !!data.locked;
+    if (!lockState[currentScoringId]) lockState[currentScoringId] = {};
+    if (!lockState[currentScoringId][currentCategory]) lockState[currentScoringId][currentCategory] = {};
+    lockState[currentScoringId][currentCategory][currentJudgeId] = !!data.locked;
     updateLockButton();
   } catch (err) {
     console.error('Failed to refresh lock state', err);
@@ -88,28 +116,29 @@ async function refreshLockState() {
 }
 
 function updateLockButton() {
-  const locked = isLocked(currentCategory, currentJudgeId);
+  const locked = isLocked(currentScoringId, currentCategory, currentJudgeId);
   if (!lockToggleBtn) return;
   lockToggleBtn.textContent = locked ? 'Unlock scores for this category' : 'Lock scores for this category';
   lockToggleBtn.style.background = locked ? '#16a34a' : '#4b5563';
 }
 
 async function toggleLock() {
-  if (!currentCategory || !currentJudgeId) return;
-  const newLocked = !isLocked(currentCategory, currentJudgeId);
+  if (!currentScoringId || !currentCategory || !currentJudgeId) return;
+  const newLocked = !isLocked(currentScoringId, currentCategory, currentJudgeId);
   try {
     const res = await fetch('/api/lock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: currentCategory, judgeId: currentJudgeId, locked: newLocked }),
+      body: JSON.stringify({ scoring: currentScoringId, category: currentCategory, judgeId: currentJudgeId, locked: newLocked }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       status(data.error || `Error ${res.status}`, true);
       return;
     }
-    if (!lockState[currentCategory]) lockState[currentCategory] = {};
-    lockState[currentCategory][currentJudgeId] = !!data.locked;
+    if (!lockState[currentScoringId]) lockState[currentScoringId] = {};
+    if (!lockState[currentScoringId][currentCategory]) lockState[currentScoringId][currentCategory] = {};
+    lockState[currentScoringId][currentCategory][currentJudgeId] = !!data.locked;
     updateLockButton();
     status(data.locked ? 'Scores locked for this category.' : 'Scores unlocked for this category.');
     renderContestants();
@@ -121,14 +150,16 @@ async function toggleLock() {
 
 function renderContestants() {
   contestantsEl.innerHTML = '';
-  if (!config) return;
+  if (!config || !currentScoringId) return;
+  const scoring = config.scorings[currentScoringId];
+  if (!scoring) return;
 
-  const allowed = config.allowedScores;
-  const used = getUsedScoresSet(currentCategory, currentJudgeId);
-  const selected = getSelectedScores(currentCategory, currentJudgeId);
-  const locked = isLocked(currentCategory, currentJudgeId);
+  const allowed = scoring.allowedScores;
+  const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
+  const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
+  const locked = isLocked(currentScoringId, currentCategory, currentJudgeId);
 
-  config.CONTESTANTS.forEach((c) => {
+  (scoring.contestants || []).forEach((c) => {
     const row = document.createElement('div');
     row.className = 'contestant';
 
@@ -172,7 +203,7 @@ function renderContestants() {
 }
 
 async function submitScore(contestantId, points) {
-  if (!config) return;
+  if (!config || !currentScoringId) return;
 
   status('Saving...');
 
@@ -181,6 +212,7 @@ async function submitScore(contestantId, points) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        scoring: currentScoringId,
         category: currentCategory,
         judgeId: currentJudgeId,
         contestantId,
@@ -195,10 +227,10 @@ async function submitScore(contestantId, points) {
       return;
     }
 
-    // Mark score as used for this judge/category
-    const used = getUsedScoresSet(currentCategory, currentJudgeId);
+    // Mark score as used for this judge/category within this scoring
+    const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
     used.add(points);
-    const selected = getSelectedScores(currentCategory, currentJudgeId);
+    const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
     selected[contestantId] = points;
     status('Saved');
     renderContestants();
@@ -211,6 +243,13 @@ async function submitScore(contestantId, points) {
 judgeSelect.addEventListener('change', () => {
   currentJudgeId = Number(judgeSelect.value);
   status('');
+  refreshLockState().then(renderContestants);
+});
+
+scoringSelect.addEventListener('change', () => {
+  currentScoringId = scoringSelect.value;
+  status('');
+  repopulateCategories();
   refreshLockState().then(renderContestants);
 });
 
