@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const bodyParser = require('body-parser');
+const XLSX = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || process.env.CARNAVAL_JUDGE_PORT || 3100;
@@ -350,6 +351,80 @@ app.get('/admin/totals', (req, res) => {
     categoryTotals,
     overallTotals,
   });
+});
+
+// Admin export: Excel with totals and raw scores for a scoring
+app.get('/admin/export.xlsx', (req, res) => {
+  const { scoring } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const scoringId = scoringCfg.id;
+  const contestants = scoringCfg.contestants || [];
+  const categories = scoringCfg.categories || [];
+
+  // Build totals sheet data
+  const totalsRows = [];
+  for (const contestant of contestants) {
+    const row = { Contestant: contestant.name };
+    let overall = 0;
+    for (const cat of categories) {
+      let sum = 0;
+      const isZeroed = zeroed[scoringId]
+        && zeroed[scoringId][cat]
+        && zeroed[scoringId][cat][contestant.id];
+      if (!isZeroed) {
+        for (const judge of JUDGES) {
+          const map = scores[scoringId]
+            && scores[scoringId][cat]
+            && scores[scoringId][cat][judge.id];
+          if (map && typeof map[contestant.id] === 'number') {
+            sum += map[contestant.id];
+          }
+        }
+      }
+      row[cat] = sum;
+      overall += sum;
+    }
+    row.Overall = overall;
+    totalsRows.push(row);
+  }
+
+  // Build raw scores sheet data
+  const rawRows = [];
+  contestants.forEach((contestant) => {
+    const row = { Contestant: contestant.name };
+    categories.forEach((cat) => {
+      JUDGES.forEach((judge) => {
+        const key = `${cat} – Judge ${judge.id}`;
+        const map = scores[scoringId]
+          && scores[scoringId][cat]
+          && scores[scoringId][cat][judge.id];
+        const val = map && typeof map[contestant.id] === 'number'
+          ? map[contestant.id]
+          : '';
+        row[key] = val;
+      });
+    });
+    rawRows.push(row);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const totalsSheet = XLSX.utils.json_to_sheet(totalsRows);
+  const rawSheet = XLSX.utils.json_to_sheet(rawRows);
+  XLSX.utils.book_append_sheet(wb, totalsSheet, `${scoringCfg.label || scoringId} Totals`);
+  XLSX.utils.book_append_sheet(wb, rawSheet, `${scoringCfg.label || scoringId} Raw`);
+
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const filename = `jurycarnaval-${scoringId}-${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
 });
 
 // Basic judge UI
