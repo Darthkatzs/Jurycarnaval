@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carnaval Judge Totals</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; margin: 0; }
+    .container { max-width: 960px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+    h1 { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border: 1px solid #111827; padding: 0.4rem 0.5rem; text-align: left; }
+    th { background: #111827; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Carnaval Judge &mdash; Totals</h1>
+    <p style="font-size:0.85rem;color:#9ca3af;">Totals below update as judges score. Use <a href="/admin/config-ui" style="color:#93c5fd;">Config</a> to edit judges, groups, and scores.</p>
+    <div id="tables"></div>
+  </main>
+
+  <script>
+    async function loadTotals() {
+      const res = await fetch('/admin/totals');
+      if (!res.ok) {
+        document.getElementById('tables').textContent = 'Failed to load totals';
+        return;
+      }
+      const data = await res.json();
+      const root = document.getElementById('tables');
+      root.innerHTML = '';
+
+      const labelForCategory = (cat) => {
+        if (cat === 'entertainment') return 'Entertainment & Enthousiasme';
+        if (cat === 'kostumering') return 'Kostumering';
+        if (cat === 'carnavalesk') return 'Carnavalesk';
+        return cat;
+      };
+
+      data.categories.forEach((cat) => {
+        const h2 = document.createElement('h2');
+        h2.textContent = labelForCategory(cat);
+        root.appendChild(h2);
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Contestant</th><th>Total points</th></tr>';
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        data.contestants.forEach((c) => {
+          const tr = document.createElement('tr');
+          const tdName = document.createElement('td');
+          tdName.textContent = c.name;
+          const tdTotal = document.createElement('td');
+          tdTotal.textContent = data.categoryTotals[cat][c.id] ?? 0;
+          tr.appendChild(tdName);
+          tr.appendChild(tdTotal);
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        root.appendChild(table);
+      });
+
+      const h2Overall = document.createElement('h2');
+      h2Overall.textContent = 'Overall total (all categories)';
+      root.appendChild(h2Overall);
+      const tableOverall = document.createElement('table');
+      const theadOverall = document.createElement('thead');
+      theadOverall.innerHTML = '<tr><th>Contestant</th><th>Total points</th></tr>';
+      tableOverall.appendChild(theadOverall);
+      const tbodyOverall = document.createElement('tbody');
+      data.contestants.forEach((c) => {
+        const tr = document.createElement('tr');
+        const tdName = document.createElement('td');
+        tdName.textContent = c.name;
+        const tdTotal = document.createElement('td');
+        tdTotal.textContent = data.overallTotals[c.id] ?? 0;
+        tr.appendChild(tdName);
+        tr.appendChild(tdTotal);
+        tbodyOverall.appendChild(tr);
+      });
+      tableOverall.appendChild(tbodyOverall);
+      root.appendChild(tableOverall);
+    }
+
+    loadTotals().catch((err) => {
+      console.error(err);
+      document.getElementById('tables').textContent = 'Failed to load totals';
+    });
+  </script>
+</body>
+</html>

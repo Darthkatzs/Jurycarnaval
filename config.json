@@ -1,0 +1,22 @@
+{
+  "judges": [
+    { "id": 1, "name": "Judge 1" },
+    { "id": 2, "name": "Judge 2" },
+    { "id": 3, "name": "Judge 3" },
+    { "id": 4, "name": "Judge 4" },
+    { "id": 5, "name": "Judge 5" },
+    { "id": 6, "name": "Judge 6" },
+    { "id": 7, "name": "Judge 7" },
+    { "id": 8, "name": "Judge 8" },
+    { "id": 9, "name": "Judge 9" },
+    { "id": 10, "name": "Judge 10" },
+    { "id": 11, "name": "Judge 11" }
+  ],
+  "contestants": [
+    { "id": 1, "name": "De Pasagers" },
+    { "id": 2, "name": "De Sparrebos" },
+    { "id": 3, "name": "De Maanblotters" }
+  ],
+  "categories": ["entertainment", "kostumering", "carnavalesk"],
+  "allowedScores": [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+}

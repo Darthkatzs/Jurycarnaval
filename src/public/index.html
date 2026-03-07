@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carnaval Judge</title>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; }
+    .container { max-width: 480px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+    h1 { margin-top: 0; font-size: 1.4rem; }
+    label { display: block; margin-bottom: 0.75rem; font-size: 0.9rem; }
+    select { width: 100%; padding: 0.4rem 0.6rem; border-radius: 0.375rem; border: 1px solid #374151; background: #020617; color: #e5e7eb; }
+    .contestant { display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px solid #111827; font-size: 0.9rem; }
+    .scores { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
+    .score-btn { border-radius: 999px; padding: 0.2rem 0.5rem; border: 1px solid #4b5563; background: #020617; color: #e5e7eb; font-size: 0.75rem; }
+    .score-btn.used { background: #374151; color: #9ca3af; border-color: #374151; }
+    .score-btn.selected { background: #4f46e5; border-color: #4f46e5; }
+    .status { margin-top: 0.75rem; font-size: 0.85rem; color: #9ca3af; min-height: 1.2rem; }
+    .status.error { color: #f97373; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Carnaval Judge</h1>
+    <p style="font-size:0.85rem;color:#9ca3af;">Pick your judge number, category, then tap a score once per contestant. Each score value can only be used once per category.</p>
+
+    <label>
+      Judge
+      <select id="judge-select"></select>
+    </label>
+
+    <label>
+      Category
+      <select id="category-select"></select>
+    </label>
+
+    <button type="button" id="lock-toggle" style="margin-bottom:0.75rem;width:100%;padding:0.4rem 0.6rem;border-radius:0.5rem;border:none;background:#4b5563;color:#e5e7eb;font-size:0.85rem;">Lock scores for this category</button>
+
+    <div id="contestants"></div>
+
+    <div id="status" class="status"></div>
+  </main>
+
+  <script src="/main.js"></script>
+</body>
+</html>
