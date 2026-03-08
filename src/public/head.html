@@ -88,6 +88,24 @@
       headPasswordStatus.classList.toggle('error', !!isError);
     }
 
+    function loadStoredHeadPassword() {
+      try {
+        const stored = sessionStorage.getItem('headPassword');
+        return stored || '';
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function storeHeadPassword(pwd) {
+      try {
+        if (pwd) sessionStorage.setItem('headPassword', pwd);
+        else sessionStorage.removeItem('headPassword');
+      } catch (err) {
+        // ignore
+      }
+    }
+
     async function loadHeadConfig() {
       const res = await fetch('/api/config');
       if (!res.ok) {
@@ -183,13 +201,12 @@
       totalsRoot.appendChild(tableOverall);
     }
 
-    loginBtn.addEventListener('click', async () => {
-      headPassword = headPasswordInput.value || '';
-      if (!headPassword) {
+    async function tryLoginWithPassword(pwd) {
+      if (!pwd) {
         setLoginStatus('Please enter a password.', true);
-        return;
+        return false;
       }
-      // Try loading totals with the provided password to validate
+      headPassword = pwd;
       const scoring = scoringSelect.value || '';
       try {
         const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
@@ -199,29 +216,29 @@
         if (!res.ok) {
           setLoginStatus('Invalid password.', true);
           headPassword = '';
-          return;
+          storeHeadPassword('');
+          return false;
         }
         // Password ok; show content
         loginSection.style.display = 'none';
         headContent.style.display = 'block';
         setLoginStatus('');
-        const data = await res.json();
-        // Render totals from initial response
-        totalsRoot.innerHTML = '';
-        data.categories = data.categories || [];
-        data.contestants = data.contestants || [];
-        const tmp = { scoring: data.scoring, scoringLabel: data.scoringLabel, categories: data.categories, contestants: data.contestants, categoryTotals: data.categoryTotals, overallTotals: data.overallTotals };
-        // Reuse the renderer
-        const saved = scoringSelect.value;
-        await loadHeadConfig();
-        scoringSelect.value = saved || scoringSelect.value;
+        storeHeadPassword(headPassword);
         await loadHeadTotals();
         await loadJudgeStatus(scoringSelect.value);
+        return true;
       } catch (err) {
         console.error(err);
         setLoginStatus('Error validating password.', true);
         headPassword = '';
+        storeHeadPassword('');
+        return false;
       }
+    }
+
+    loginBtn.addEventListener('click', async () => {
+      const pwd = headPasswordInput.value || '';
+      await tryLoginWithPassword(pwd);
     });
 
     scoringSelect.addEventListener('change', async () => {
@@ -274,8 +291,13 @@
       }
     });
 
-    // Preload config for scoring list before login
-    loadHeadConfig().catch((err) => {
+    // Preload config for scoring list before login, and attempt auto-login from sessionStorage
+    loadHeadConfig().then(async () => {
+      const stored = loadStoredHeadPassword();
+      if (stored) {
+        await tryLoginWithPassword(stored);
+      }
+    }).catch((err) => {
       console.error(err);
       setLoginStatus('Failed to load config', true);
     });
