@@ -31,6 +31,10 @@ async function loadJudgeStatus(scoringId) {
     th.textContent = cat;
     headRow.appendChild(th);
   });
+  const thDone = document.createElement('th');
+  thDone.textContent = 'Scoring done';
+  headRow.appendChild(thDone);
+
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -58,6 +62,14 @@ async function loadJudgeStatus(scoringId) {
       td.appendChild(span);
       tr.appendChild(td);
     });
+    const tdDone = document.createElement('td');
+    const doneSpan = document.createElement('span');
+    const isDone = !!j.done;
+    doneSpan.className = `judge-status-badge ${isDone ? 'locked' : 'missing'}`;
+    doneSpan.textContent = isDone ? 'Yes' : 'No';
+    tdDone.appendChild(doneSpan);
+    tr.appendChild(tdDone);
+
     tbody.appendChild(tr);
   });
 

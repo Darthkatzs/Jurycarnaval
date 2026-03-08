@@ -17,12 +17,13 @@
     .score-btn.selected { background: #4f46e5; border-color: #4f46e5; }
     .status { margin-top: 0.75rem; font-size: 0.85rem; color: #9ca3af; min-height: 1.2rem; }
     .status.error { color: #f97373; }
+    .done-indicator { margin-top: 0.25rem; font-size: 0.8rem; color: #9ca3af; }
   </style>
 </head>
 <body>
   <main class="container">
     <h1>Carnaval Judge</h1>
-    <p style="font-size:0.85rem;color:#9ca3af;">Pick your judge number, category, then tap a score once per contestant. Each score value can only be used once per category.</p>
+    <p style="font-size:0.85rem;color:#9ca3af;">Pick your judge, scoring, and category. Each score value can only be used once per category. Lock per category when done, then mark the whole scoring as finished.</p>
 
     <label>
       Judge
@@ -39,7 +40,10 @@
       <select id="category-select"></select>
     </label>
 
-    <button type="button" id="lock-toggle" style="margin-bottom:0.75rem;width:100%;padding:0.4rem 0.6rem;border-radius:0.5rem;border:none;background:#4b5563;color:#e5e7eb;font-size:0.85rem;">Lock scores for this category</button>
+    <button type="button" id="lock-toggle" style="margin-bottom:0.5rem;width:100%;padding:0.4rem 0.6rem;border-radius:0.5rem;border:none;background:#4b5563;color:#e5e7eb;font-size:0.85rem;">Lock scores for this category</button>
+
+    <button type="button" id="done-toggle" style="margin-bottom:0.75rem;width:100%;padding:0.35rem 0.6rem;border-radius:0.5rem;border:none;background:#6b7280;color:#e5e7eb;font-size:0.85rem;">Mark scoring as finished</button>
+    <div id="done-indicator" class="done-indicator"></div>
 
     <div id="contestants"></div>
 

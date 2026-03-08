@@ -4,6 +4,8 @@ const categorySelect = document.getElementById('category-select');
 const contestantsEl = document.getElementById('contestants');
 const statusEl = document.getElementById('status');
 const lockToggleBtn = document.getElementById('lock-toggle');
+const doneToggleBtn = document.getElementById('done-toggle');
+const doneIndicatorEl = document.getElementById('done-indicator');
 
 let config = null;
 let currentScoringId = null;
@@ -50,10 +52,9 @@ async function loadConfig() {
   // Populate categories for current scoring
   repopulateCategories();
 
-  refreshLockState().then(renderContestants).catch((err) => {
-    console.error(err);
-    renderContestants();
-  });
+  await refreshLockState();
+  await refreshDoneState();
+  renderContestants();
 }
 
 function labelForCategory(cat) {
@@ -66,6 +67,19 @@ function labelForCategory(cat) {
 function status(msg, isError = false) {
   statusEl.textContent = msg || '';
   statusEl.classList.toggle('error', !!isError);
+}
+
+function updateDoneIndicator(isDone) {
+  if (!doneIndicatorEl || !doneToggleBtn) return;
+  if (isDone) {
+    doneIndicatorEl.textContent = 'You have marked this scoring as finished.';
+    doneToggleBtn.textContent = 'Unmark scoring as finished';
+    doneToggleBtn.style.background = '#16a34a';
+  } else {
+    doneIndicatorEl.textContent = '';
+    doneToggleBtn.textContent = 'Mark scoring as finished';
+    doneToggleBtn.style.background = '#6b7280';
+  }
 }
 
 function repopulateCategories() {
@@ -112,6 +126,42 @@ async function refreshLockState() {
     updateLockButton();
   } catch (err) {
     console.error('Failed to refresh lock state', err);
+  }
+}
+
+async function refreshDoneState() {
+  if (!currentScoringId || !currentJudgeId) return;
+  try {
+    const res = await fetch(`/api/done?scoring=${encodeURIComponent(currentScoringId)}&judgeId=${encodeURIComponent(currentJudgeId)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    updateDoneIndicator(!!data.done);
+  } catch (err) {
+    console.error('Failed to refresh done state', err);
+  }
+}
+
+async function toggleDone() {
+  if (!currentScoringId || !currentJudgeId) return;
+  const currentlyDoneText = doneIndicatorEl && doneIndicatorEl.textContent;
+  const wantDone = !currentlyDoneText; // if there is text, assume marked done
+  status('Saving...');
+  try {
+    const res = await fetch('/api/done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scoring: currentScoringId, judgeId: currentJudgeId, done: wantDone }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      status(data.error || `Error ${res.status}`, true);
+      return;
+    }
+    updateDoneIndicator(!!data.done);
+    status(data.done ? 'Scoring marked as finished.' : 'Scoring unmarked as finished.');
+  } catch (err) {
+    console.error(err);
+    status('Failed to update done state', true);
   }
 }
 
@@ -247,27 +297,36 @@ async function submitScore(contestantId, points) {
   }
 }
 
-judgeSelect.addEventListener('change', () => {
+judgeSelect.addEventListener('change', async () => {
   currentJudgeId = Number(judgeSelect.value);
   status('');
-  refreshLockState().then(renderContestants);
+  await refreshLockState();
+  await refreshDoneState();
+  renderContestants();
 });
 
-scoringSelect.addEventListener('change', () => {
+scoringSelect.addEventListener('change', async () => {
   currentScoringId = scoringSelect.value;
   status('');
   repopulateCategories();
-  refreshLockState().then(renderContestants);
+  await refreshLockState();
+  await refreshDoneState();
+  renderContestants();
 });
 
-categorySelect.addEventListener('change', () => {
+categorySelect.addEventListener('change', async () => {
   currentCategory = categorySelect.value;
   status('');
-  refreshLockState().then(renderContestants);
+  await refreshLockState();
+  renderContestants();
 });
 
 lockToggleBtn.addEventListener('click', () => {
   toggleLock();
+});
+
+doneToggleBtn.addEventListener('click', () => {
+  toggleDone();
 });
 
 loadConfig().catch((err) => {

@@ -39,8 +39,8 @@ if (!config.scorings) {
   config.defaultScoring = config.defaultScoring || 'groups';
 }
 
-// Load persisted scoring state if present (scores, locks, zeroed flags)
-let persistedState = { scores: {}, locks: {}, zeroed: {} };
+// Load persisted scoring state if present (scores, locks, zeroed flags, done flags)
+let persistedState = { scores: {}, locks: {}, zeroed: {}, done: {} };
 try {
   if (fs.existsSync(STATE_PATH)) {
     const raw = fs.readFileSync(STATE_PATH, 'utf8');
@@ -96,6 +96,8 @@ const scores = persistedState.scores || {};
 const locks = persistedState.locks || {};
 // Zero overrides: zeroed[scoringId][category][contestantId] = true (disqualify for all judges in that category)
 const zeroed = persistedState.zeroed || {};
+// Done flags: done[scoringId][judgeId] = true/false (judge finished entire scoring)
+const done = persistedState.done || {};
 
 // Ensure all structures exist for known scorings
 for (const scoringId of SCORING_IDS) {
@@ -103,6 +105,7 @@ for (const scoringId of SCORING_IDS) {
   if (!scores[scoringId]) scores[scoringId] = {};
   if (!locks[scoringId]) locks[scoringId] = {};
   if (!zeroed[scoringId]) zeroed[scoringId] = {};
+  if (!done[scoringId]) done[scoringId] = {};
 
   for (const cat of scoringCfg.categories || []) {
     if (!scores[scoringId][cat]) scores[scoringId][cat] = {};
@@ -115,6 +118,7 @@ for (const scoringId of SCORING_IDS) {
 persistedState.scores = scores;
 persistedState.locks = locks;
 persistedState.zeroed = zeroed;
+persistedState.done = done;
 
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -163,6 +167,62 @@ app.post('/admin/config', (req, res) => {
     console.error('Failed to write config.json', err);
     res.status(500).json({ error: 'Failed to write config.json' });
   }
+});
+
+// Get "done" status for a judge within a scoring (has marked scoring complete)
+app.get('/api/done', (req, res) => {
+  const { scoring, judgeId } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  const judge = JUDGES.find((j) => j.id === Number(judgeId));
+  if (!judge) {
+    return res.status(400).json({ error: 'Invalid judge' });
+  }
+  const isDone = !!(done[scoringCfg.id] && done[scoringCfg.id][judge.id]);
+  res.json({ done: isDone });
+});
+
+// Set "done" status for a judge within a scoring
+app.post('/api/done', (req, res) => {
+  const { scoring, judgeId, done: wantDone } = req.body || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  const judge = JUDGES.find((j) => j.id === Number(judgeId));
+  if (!judge) {
+    return res.status(400).json({ error: 'Invalid judge' });
+  }
+
+  const flag = !!wantDone;
+  if (flag) {
+    // Only allow marking done if all categories are complete for this judge
+    const categories = scoringCfg.categories || [];
+    const contestants = scoringCfg.contestants || [];
+    const incomplete = categories.filter((cat) => {
+      const judgeScores = scores[scoringCfg.id]
+        && scores[scoringCfg.id][cat]
+        && scores[scoringCfg.id][cat][judge.id];
+      if (!contestants.length) return true;
+      return !contestants.every((c) => judgeScores && typeof judgeScores[c.id] === 'number');
+    });
+    if (incomplete.length > 0) {
+      return res.status(400).json({
+        error: `Cannot mark done: missing scores in categories: ${incomplete.join(', ')}`,
+      });
+    }
+  }
+
+  if (!done[scoringCfg.id]) done[scoringCfg.id] = {};
+  done[scoringCfg.id][judge.id] = flag;
+  saveState();
+  res.json({ ok: true, done: flag });
 });
 
 // Get lock status for a judge/category within a scoring
@@ -382,7 +442,8 @@ app.get('/admin/status', (req, res) => {
       );
       perCategory[cat] = { complete: allScored, locked };
     });
-    return { judgeId: judge.id, judgeName: judge.name, categories: perCategory };
+    const isDone = !!(done[scoringCfg.id] && done[scoringCfg.id][judge.id]);
+    return { judgeId: judge.id, judgeName: judge.name, done: isDone, categories: perCategory };
   });
 
   res.json({
