@@ -227,10 +227,17 @@ async function submitScore(contestantId, points) {
       return;
     }
 
-    // Mark score as used for this judge/category within this scoring
+    // Update used/selected scores for this judge/category within this scoring
     const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
-    used.add(points);
     const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
+
+    const previous = selected[contestantId];
+    if (typeof previous === 'number' && previous !== points) {
+      // Free up the previously used score value for this judge/category
+      used.delete(previous);
+    }
+
+    used.add(points);
     selected[contestantId] = points;
     status('Saved');
     renderContestants();
