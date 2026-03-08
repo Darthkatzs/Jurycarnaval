@@ -168,7 +168,9 @@ async function toggleDone() {
 function updateLockButton() {
   const locked = isLocked(currentScoringId, currentCategory, currentJudgeId);
   if (!lockToggleBtn) return;
-  lockToggleBtn.textContent = locked ? 'Unlock scores for this category' : 'Lock scores for this category';
+  lockToggleBtn.textContent = locked
+    ? 'Ontgrendel scores voor deze categorie'
+    : 'Vergrendel scores voor deze categorie';
   lockToggleBtn.style.background = locked ? '#16a34a' : '#4b5563';
 }
 
