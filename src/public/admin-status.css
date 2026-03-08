@@ -1,0 +1,33 @@
+.judge-status-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+.judge-status-table th,
+.judge-status-table td {
+  border: 1px solid #111827;
+  padding: 0.3rem 0.4rem;
+  text-align: center;
+}
+.judge-status-table th {
+  background: #111827;
+}
+.judge-status-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.judge-status-badge.locked {
+  background: #16a34a;
+  color: #e5e7eb;
+}
+.judge-status-badge.complete {
+  background: #ca8a04;
+  color: #111827;
+}
+.judge-status-badge.missing {
+  background: #7f1d1d;
+  color: #fee2e2;
+}

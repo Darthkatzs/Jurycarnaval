@@ -353,6 +353,46 @@ app.get('/admin/totals', (req, res) => {
   });
 });
 
+// Admin status: per-judge, per-category completion/lock matrix for a scoring
+app.get('/admin/status', (req, res) => {
+  const { scoring } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const categories = scoringCfg.categories || [];
+  const contestants = scoringCfg.contestants || [];
+
+  const status = JUDGES.map((judge) => {
+    const perCategory = {};
+    categories.forEach((cat) => {
+      const judgeScores = scores[scoringCfg.id]
+        && scores[scoringCfg.id][cat]
+        && scores[scoringCfg.id][cat][judge.id];
+      const allScored = contestants.length === 0
+        ? false
+        : contestants.every((c) => judgeScores && typeof judgeScores[c.id] === 'number');
+      const locked = !!(
+        locks[scoringCfg.id]
+        && locks[scoringCfg.id][cat]
+        && locks[scoringCfg.id][cat][judge.id]
+      );
+      perCategory[cat] = { complete: allScored, locked };
+    });
+    return { judgeId: judge.id, judgeName: judge.name, categories: perCategory };
+  });
+
+  res.json({
+    scoring: scoringCfg.id,
+    scoringLabel: scoringCfg.label || scoringCfg.id,
+    categories,
+    judges: status,
+  });
+});
+
 // Admin export: Excel with totals and raw scores for a scoring
 app.get('/admin/export.xlsx', (req, res) => {
   const { scoring } = req.query || {};
