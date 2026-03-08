@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carnaval Judge – Head Judge</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; margin: 0; }
+    .container { max-width: 960px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+    h1 { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border: 1px solid #111827; padding: 0.4rem 0.5rem; text-align: left; }
+    th { background: #111827; }
+    input, select { padding: 0.35rem 0.5rem; border-radius: 0.375rem; border: 1px solid #374151; background:#020617; color:#e5e7eb; }
+    button { padding: 0.35rem 0.75rem; border-radius: 0.5rem; border:none; background:#4f46e5; color:#fff; font-size:0.85rem; }
+    .status { margin-top:0.5rem; font-size:0.85rem; color:#9ca3af; }
+    .status.error { color:#f97373; }
+  </style>
+  <link rel="stylesheet" href="/admin-status.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Carnaval Judge — Head Judge</h1>
+
+    <section id="login-section">
+      <h2>Head Judge Login</h2>
+      <p style="font-size:0.85rem;color:#9ca3af;">Enter the head judge password to view scores and exports.</p>
+      <input type="password" id="head-password" placeholder="Password" />
+      <button id="login-btn">Login</button>
+      <div id="login-status" class="status"></div>
+    </section>
+
+    <section id="head-content" style="display:none;">
+      <h2>Scores &amp; Status</h2>
+      <p style="font-size:0.85rem;color:#9ca3af;">Select a scoring to view totals and judge completion. Use Export Excel to download detailed results.</p>
+
+      <label style="display:block;margin-top:0.5rem;font-size:0.85rem;">
+        Scoring
+        <select id="head-scoring-select" style="margin-top:0.25rem;"></select>
+      </label>
+
+      <button id="head-export-btn" style="margin-top:0.5rem;">Export Excel</button>
+
+      <div id="head-totals"></div>
+
+      <h3 style="margin-top:1.5rem;">Judge Lock / Completion Status</h3>
+      <p style="font-size:0.8rem;color:#9ca3af;">Per judge and category: <span class="judge-status-badge locked">Locked</span>, <span class="judge-status-badge complete">Complete</span>, or <span class="judge-status-badge missing">Missing</span>. The final column shows whether the judge has marked the scoring as done.</p>
+      <div id="head-status-table"></div>
+
+      <h3 style="margin-top:1.5rem;">Change Head Judge Password</h3>
+      <p style="font-size:0.8rem;color:#9ca3af;">Change this only once you have verified the new password works.</p>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <input type="password" id="head-old-password" placeholder="Current password" />
+        <input type="password" id="head-new-password" placeholder="New password" />
+        <button id="head-change-btn">Change Password</button>
+      </div>
+      <div id="head-password-status" class="status"></div>
+    </section>
+  </main>
+
+  <script src="/admin-status.js"></script>
+  <script>
+    let headPassword = '';
+
+    const loginSection = document.getElementById('login-section');
+    const headContent = document.getElementById('head-content');
+    const headPasswordInput = document.getElementById('head-password');
+    const loginBtn = document.getElementById('login-btn');
+    const loginStatus = document.getElementById('login-status');
+    const scoringSelect = document.getElementById('head-scoring-select');
+    const exportBtn = document.getElementById('head-export-btn');
+    const totalsRoot = document.getElementById('head-totals');
+    const headStatusRoot = document.getElementById('head-status-table');
+    const headOldPasswordInput = document.getElementById('head-old-password');
+    const headNewPasswordInput = document.getElementById('head-new-password');
+    const headChangeBtn = document.getElementById('head-change-btn');
+    const headPasswordStatus = document.getElementById('head-password-status');
+
+    function setLoginStatus(msg, isError) {
+      loginStatus.textContent = msg || '';
+      loginStatus.classList.toggle('error', !!isError);
+    }
+
+    function setHeadPasswordStatus(msg, isError) {
+      headPasswordStatus.textContent = msg || '';
+      headPasswordStatus.classList.toggle('error', !!isError);
+    }
+
+    async function loadHeadConfig() {
+      const res = await fetch('/api/config');
+      if (!res.ok) {
+        setLoginStatus('Failed to load config', true);
+        return;
+      }
+      const cfg = await res.json();
+      const scorings = cfg.scorings || {};
+      scoringSelect.innerHTML = '';
+      Object.keys(scorings).forEach((id) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = scorings[id].label || id;
+        scoringSelect.appendChild(opt);
+      });
+      const initial = cfg.defaultScoring || Object.keys(scorings)[0];
+      if (initial) scoringSelect.value = initial;
+      await loadHeadTotals();
+      await loadJudgeStatus(scoringSelect.value);
+    }
+
+    async function loadHeadTotals() {
+      const scoring = scoringSelect.value;
+      const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
+      const res = await fetch(`/head/totals${query}`, {
+        headers: { 'X-Head-Password': headPassword },
+      });
+      if (!res.ok) {
+        totalsRoot.textContent = 'Failed to load totals (check password).';
+        return;
+      }
+      const data = await res.json();
+      totalsRoot.innerHTML = '';
+
+      const labelForCategory = (cat) => {
+        if (cat === 'entertainment') return 'Entertainment & Enthousiasme';
+        if (cat === 'kostumering') return 'Kostumering';
+        if (cat === 'carnavalesk') return 'Carnavalesk';
+        return cat;
+      };
+
+      const title = document.createElement('p');
+      title.style.fontSize = '0.9rem';
+      title.style.color = '#9ca3af';
+      title.textContent = `Scoring: ${data.scoringLabel || data.scoring}`;
+      totalsRoot.appendChild(title);
+
+      data.categories.forEach((cat) => {
+        const h2 = document.createElement('h2');
+        h2.textContent = labelForCategory(cat);
+        totalsRoot.appendChild(h2);
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Contestant</th><th>Total points</th></tr>';
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        data.contestants.forEach((c) => {
+          const tr = document.createElement('tr');
+          const tdName = document.createElement('td');
+          tdName.textContent = c.name;
+          const tdTotal = document.createElement('td');
+          tdTotal.textContent = data.categoryTotals[cat][c.id] ?? 0;
+          tr.appendChild(tdName);
+          tr.appendChild(tdTotal);
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        totalsRoot.appendChild(table);
+      });
+
+      const h2Overall = document.createElement('h2');
+      h2Overall.textContent = 'Overall total (all categories)';
+      totalsRoot.appendChild(h2Overall);
+      const tableOverall = document.createElement('table');
+      const theadOverall = document.createElement('thead');
+      theadOverall.innerHTML = '<tr><th>Contestant</th><th>Total points</th></tr>';
+      tableOverall.appendChild(theadOverall);
+      const tbodyOverall = document.createElement('tbody');
+      data.contestants.forEach((c) => {
+        const tr = document.createElement('tr');
+        const tdName = document.createElement('td');
+        tdName.textContent = c.name;
+        const tdTotal = document.createElement('td');
+        tdTotal.textContent = data.overallTotals[c.id] ?? 0;
+        tr.appendChild(tdName);
+        tr.appendChild(tdTotal);
+        tbodyOverall.appendChild(tr);
+      });
+      tableOverall.appendChild(tbodyOverall);
+      totalsRoot.appendChild(tableOverall);
+    }
+
+    loginBtn.addEventListener('click', async () => {
+      headPassword = headPasswordInput.value || '';
+      if (!headPassword) {
+        setLoginStatus('Please enter a password.', true);
+        return;
+      }
+      // Try loading totals with the provided password to validate
+      const scoring = scoringSelect.value || '';
+      try {
+        const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
+        const res = await fetch(`/head/totals${query}`, {
+          headers: { 'X-Head-Password': headPassword },
+        });
+        if (!res.ok) {
+          setLoginStatus('Invalid password.', true);
+          headPassword = '';
+          return;
+        }
+        // Password ok; show content
+        loginSection.style.display = 'none';
+        headContent.style.display = 'block';
+        setLoginStatus('');
+        const data = await res.json();
+        // Render totals from initial response
+        totalsRoot.innerHTML = '';
+        data.categories = data.categories || [];
+        data.contestants = data.contestants || [];
+        const tmp = { scoring: data.scoring, scoringLabel: data.scoringLabel, categories: data.categories, contestants: data.contestants, categoryTotals: data.categoryTotals, overallTotals: data.overallTotals };
+        // Reuse the renderer
+        const saved = scoringSelect.value;
+        await loadHeadConfig();
+        scoringSelect.value = saved || scoringSelect.value;
+        await loadHeadTotals();
+        await loadJudgeStatus(scoringSelect.value);
+      } catch (err) {
+        console.error(err);
+        setLoginStatus('Error validating password.', true);
+        headPassword = '';
+      }
+    });
+
+    scoringSelect.addEventListener('change', async () => {
+      await loadHeadTotals();
+      await loadJudgeStatus(scoringSelect.value);
+    });
+
+    exportBtn.addEventListener('click', () => {
+      const scoring = scoringSelect.value;
+      const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
+      const url = `/head/export.xlsx${query}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      a.rel = 'noopener';
+      a.target = '_blank';
+      a.click();
+    });
+
+    headChangeBtn.addEventListener('click', async () => {
+      const oldPwd = headOldPasswordInput.value || '';
+      const newPwd = headNewPasswordInput.value || '';
+      if (!oldPwd || !newPwd) {
+        setHeadPasswordStatus('Please fill in both current and new password.', true);
+        return;
+      }
+      try {
+        const res = await fetch('/head/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Head-Password': oldPwd },
+          body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setHeadPasswordStatus(data.error || `Error ${res.status}`, true);
+          return;
+        }
+        headPassword = newPwd;
+        headOldPasswordInput.value = '';
+        headNewPasswordInput.value = '';
+        setHeadPasswordStatus('Password updated. Use the new password from now on.', false);
+      } catch (err) {
+        console.error(err);
+        setHeadPasswordStatus('Failed to change password.', true);
+      }
+    });
+
+    // Preload config for scoring list before login
+    loadHeadConfig().catch((err) => {
+      console.error(err);
+      setLoginStatus('Failed to load config', true);
+    });
+  </script>
+</body>
+</html>

@@ -3,40 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Carnaval Judge Totals</title>
+  <title>Carnaval Judge – Admin</title>
   <style>
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; margin: 0; }
     .container { max-width: 960px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
     h1 { margin-top: 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
-    th, td { border: 1px solid #111827; padding: 0.4rem 0.5rem; text-align: left; }
-    th { background: #111827; }
   </style>
   <link rel="stylesheet" href="/admin-status.css" />
 </head>
 <body>
   <main class="container">
-    <h1>Carnaval Judge &mdash; Totals</h1>
-    <p style="font-size:0.85rem;color:#9ca3af;">Totals below update as judges score. Use <a href="/admin/config-ui" style="color:#93c5fd;">Config</a> to edit judges, groups, and scores.</p>
+    <h1>Carnaval Judge — Admin</h1>
+    <p style="font-size:0.85rem;color:#9ca3af;">Use this page to see which judges have completed their scoring and to debug issues. For totals and exports, use the separate <code>/head</code> (head judge) page.</p>
+    <p style="font-size:0.85rem;color:#9ca3af;">Config editing: <a href="/admin/config-ui" style="color:#93c5fd;">Open config editor</a>.</p>
 
     <label style="display:block;margin-top:0.5rem;font-size:0.85rem;">
       Scoring
       <select id="scoring-select" style="margin-top:0.25rem;padding:0.25rem 0.4rem;border-radius:0.375rem;border:1px solid #374151;background:#020617;color:#e5e7eb;"></select>
     </label>
 
-    <button id="export-btn" style="margin-top:0.5rem;padding:0.35rem 0.75rem;border-radius:0.5rem;border:none;background:#4f46e5;color:#fff;font-size:0.85rem;">Export Excel</button>
-
-    <div id="tables"></div>
-
     <h2 style="margin-top:1.5rem;">Judge Lock / Completion Status</h2>
-    <p style="font-size:0.8rem;color:#9ca3af;">Per judge and category: <span class="judge-status-badge locked">Locked</span>, <span class="judge-status-badge complete">Complete</span>, or <span class="judge-status-badge missing">Missing</span>.</p>
+    <p style="font-size:0.8rem;color:#9ca3af;">Per judge and category: <span class="judge-status-badge locked">Locked</span>, <span class="judge-status-badge complete">Complete</span>, or <span class="judge-status-badge missing">Missing</span>. The final column shows whether the judge has marked the scoring as done.</p>
     <div id="status-table"></div>
   </main>
 
   <script src="/admin-status.js"></script>
   <script>
     const scoringSelect = document.getElementById('scoring-select');
-    const exportBtn = document.getElementById('export-btn');
 
     async function loadConfig() {
       const res = await fetch('/api/config');
@@ -52,102 +45,19 @@
       });
       const initial = cfg.defaultScoring || Object.keys(scorings)[0];
       if (initial) scoringSelect.value = initial;
-      await loadTotals();
       await loadJudgeStatus(scoringSelect.value);
-    }
-
-    async function loadTotals() {
-      const scoring = scoringSelect.value;
-      const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
-      const res = await fetch(`/admin/totals${query}`);
-      if (!res.ok) {
-        document.getElementById('tables').textContent = 'Failed to load totals';
-        return;
-      }
-      const data = await res.json();
-      const root = document.getElementById('tables');
-      root.innerHTML = '';
-
-      const labelForCategory = (cat) => {
-        if (cat === 'entertainment') return 'Entertainment & Enthousiasme';
-        if (cat === 'kostumering') return 'Kostumering';
-        if (cat === 'carnavalesk') return 'Carnavalesk';
-        return cat;
-      };
-
-      const title = document.createElement('p');
-      title.style.fontSize = '0.9rem';
-      title.style.color = '#9ca3af';
-      title.textContent = `Scoring: ${data.scoringLabel || data.scoring}`;
-      root.appendChild(title);
-
-      data.categories.forEach((cat) => {
-        const h2 = document.createElement('h2');
-        h2.textContent = labelForCategory(cat);
-        root.appendChild(h2);
-
-        const table = document.createElement('table');
-        const thead = document.createElement('thead');
-        thead.innerHTML = '<tr><th>Contestant</th><th>Total points</th></tr>';
-        table.appendChild(thead);
-
-        const tbody = document.createElement('tbody');
-        data.contestants.forEach((c) => {
-          const tr = document.createElement('tr');
-          const tdName = document.createElement('td');
-          tdName.textContent = c.name;
-          const tdTotal = document.createElement('td');
-          tdTotal.textContent = data.categoryTotals[cat][c.id] ?? 0;
-          tr.appendChild(tdName);
-          tr.appendChild(tdTotal);
-          tbody.appendChild(tr);
-        });
-
-        table.appendChild(tbody);
-        root.appendChild(table);
-      });
-
-      const h2Overall = document.createElement('h2');
-      h2Overall.textContent = 'Overall total (all categories)';
-      root.appendChild(h2Overall);
-      const tableOverall = document.createElement('table');
-      const theadOverall = document.createElement('thead');
-      theadOverall.innerHTML = '<tr><th>Contestant</th><th>Total points</th></tr>';
-      tableOverall.appendChild(theadOverall);
-      const tbodyOverall = document.createElement('tbody');
-      data.contestants.forEach((c) => {
-        const tr = document.createElement('tr');
-        const tdName = document.createElement('td');
-        tdName.textContent = c.name;
-        const tdTotal = document.createElement('td');
-        tdTotal.textContent = data.overallTotals[c.id] ?? 0;
-        tr.appendChild(tdName);
-        tr.appendChild(tdTotal);
-        tbodyOverall.appendChild(tr);
-      });
-      tableOverall.appendChild(tbodyOverall);
-      root.appendChild(tableOverall);
     }
 
     scoringSelect.addEventListener('change', async () => {
       try {
-        await loadTotals();
         await loadJudgeStatus(scoringSelect.value);
       } catch (err) {
         console.error(err);
-        document.getElementById('tables').textContent = 'Failed to load totals';
       }
-    });
-
-    exportBtn.addEventListener('click', () => {
-      const scoring = scoringSelect.value;
-      const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
-      window.location.href = `/admin/export.xlsx${query}`;
     });
 
     loadConfig().catch((err) => {
       console.error(err);
-      document.getElementById('tables').textContent = 'Failed to load totals';
     });
   </script>
 </body>

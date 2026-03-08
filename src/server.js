@@ -39,16 +39,15 @@ if (!config.scorings) {
   config.defaultScoring = config.defaultScoring || 'groups';
 }
 
-// Load persisted scoring state if present (scores, locks, zeroed flags, done flags)
-let persistedState = { scores: {}, locks: {}, zeroed: {}, done: {} };
+// Load persisted scoring state if present (scores, locks, zeroed flags, done flags, head judge password)
+let persistedState = { scores: {}, locks: {}, zeroed: {}, done: {}, headPassword: 'password' };
 try {
   if (fs.existsSync(STATE_PATH)) {
     const raw = fs.readFileSync(STATE_PATH, 'utf8');
-    persistedState = JSON.parse(raw);
+    persistedState = Object.assign({}, persistedState, JSON.parse(raw));
   }
 } catch (err) {
   console.warn('Failed to read state.json, starting fresh:', err.message);
-  persistedState = { scores: {}, locks: {}, zeroed: {} };
 }
 
 // Migrate legacy (no scoring dimension) state into default scoring if needed
@@ -67,6 +66,23 @@ function saveState() {
   } catch (err) {
     console.error('Failed to write state.json:', err.message);
   }
+}
+
+function getHeadPassword() {
+  return typeof persistedState.headPassword === 'string' && persistedState.headPassword.length
+    ? persistedState.headPassword
+    : 'password';
+}
+
+function checkHeadPassword(req, res) {
+  const provided =
+    (req.headers['x-head-password'] && String(req.headers['x-head-password'])) ||
+    (req.query && req.query.password ? String(req.query.password) : '');
+  if (provided !== getHeadPassword()) {
+    res.status(401).json({ error: 'Invalid head judge password' });
+    return false;
+  }
+  return true;
 }
 
 function getJudges() {
@@ -366,8 +382,9 @@ app.post('/api/score', (req, res) => {
   return res.json({ ok: true });
 });
 
-// API to get totals by category + overall for a scoring
-app.get('/admin/totals', (req, res) => {
+// API to get totals by category + overall for a scoring (head judge, password protected)
+app.get('/head/totals', (req, res) => {
+  if (!checkHeadPassword(req, res)) return;
   const { scoring } = req.query || {};
   let scoringCfg;
   try {
@@ -413,7 +430,7 @@ app.get('/admin/totals', (req, res) => {
   });
 });
 
-// Admin status: per-judge, per-category completion/lock matrix for a scoring
+// Admin status: per-judge, per-category completion/lock matrix for a scoring (no password)
 app.get('/admin/status', (req, res) => {
   const { scoring } = req.query || {};
   let scoringCfg;
@@ -454,8 +471,10 @@ app.get('/admin/status', (req, res) => {
   });
 });
 
-// Admin export: Excel with totals and raw scores for a scoring
-app.get('/admin/export.xlsx', (req, res) => {
+// Head judge export: Excel with totals and raw scores for a scoring (password protected)
+app.get('/head/export.xlsx', (req, res) => {
+  if (!checkHeadPassword(req, res)) return;
+
   const { scoring } = req.query || {};
   let scoringCfg;
   try {
@@ -541,6 +560,11 @@ app.get('/admin', (req, res) => {
 // Admin config editor UI
 app.get('/admin/config-ui', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'config.html'));
+});
+
+// Head judge UI
+app.get('/head', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'head.html'));
 });
 
 app.listen(PORT, () => {
