@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Carnaval Judge – Head Judge</title>
+  <title>Carnavalsjury – Hoofdjury</title>
   <style>
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; margin: 0; }
     .container { max-width: 960px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
@@ -20,40 +20,40 @@
 </head>
 <body>
   <main class="container">
-    <h1>Carnaval Judge — Head Judge</h1>
+    <h1>Carnavalsjury — Hoofdjury</h1>
 
     <section id="login-section">
-      <h2>Head Judge Login</h2>
-      <p style="font-size:0.85rem;color:#9ca3af;">Enter the head judge password to view scores and exports.</p>
-      <input type="password" id="head-password" placeholder="Password" />
-      <button id="login-btn">Login</button>
+      <h2>Hoofdjury login</h2>
+      <p style="font-size:0.85rem;color:#9ca3af;">Geef het hoofdjury-wachtwoord in om scores en exports te bekijken.</p>
+      <input type="password" id="head-password" placeholder="Wachtwoord" />
+      <button id="login-btn">Inloggen</button>
       <div id="login-status" class="status"></div>
     </section>
 
     <section id="head-content" style="display:none;">
-      <h2>Scores &amp; Status</h2>
-      <p style="font-size:0.85rem;color:#9ca3af;">Select a scoring to view totals and judge completion. Use Export Excel to download detailed results.</p>
+      <h2>Scores &amp; status</h2>
+      <p style="font-size:0.85rem;color:#9ca3af;">Kies een beoordeling om totalen en voortgang per jurylid te zien. Gebruik Export Excel om de resultaten te downloaden.</p>
 
       <label style="display:block;margin-top:0.5rem;font-size:0.85rem;">
-        Scoring
+        Beoordeling
         <select id="head-scoring-select" style="margin-top:0.25rem;"></select>
       </label>
 
-      <button id="head-export-btn" style="margin-top:0.5rem;">Export Excel</button>
+      <button id="head-export-btn" style="margin-top:0.5rem;">Export naar Excel</button>
 
       <div id="head-totals"></div>
 
-      <h3 style="margin-top:1.5rem;">Judge Lock / Completion Status</h3>
-      <p style="font-size:0.8rem;color:#9ca3af;">Per judge and category: <span class="judge-status-badge locked">Locked</span>, <span class="judge-status-badge complete">Complete</span>, or <span class="judge-status-badge missing">Missing</span>. The final column shows whether the judge has marked the scoring as done.</p>
+      <h3 style="margin-top:1.5rem;">Status per jurylid</h3>
+      <p style="font-size:0.8rem;color:#9ca3af;">Per jurylid en categorie: <span class="judge-status-badge locked">Vergrendeld</span>, <span class="judge-status-badge complete">Voltooid</span> of <span class="judge-status-badge missing">Ontbrekend</span>. De laatste kolom toont of het jurylid de beoordeling als afgewerkt heeft gemarkeerd.</p>
       <div id="head-status-table"></div>
 
-      <h3 style="margin-top:1.5rem;">Change Head Judge Password</h3>
-      <p style="font-size:0.8rem;color:#9ca3af;">Change this only once you have verified the new password works.</p>
+      <h3 style="margin-top:1.5rem;">Hoofdjury-wachtwoord wijzigen</h3>
+      <p style="font-size:0.8rem;color:#9ca3af;">Wijzig dit pas nadat je gecontroleerd hebt dat het nieuwe wachtwoord werkt.</p>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-        <input type="password" id="head-old-password" placeholder="Current password" />
-        <input type="password" id="head-new-password" placeholder="New password" />
-        <input type="password" id="head-confirm-password" placeholder="Confirm new password" />
-        <button id="head-change-btn">Change Password</button>
+        <input type="password" id="head-old-password" placeholder="Huidig wachtwoord" />
+        <input type="password" id="head-new-password" placeholder="Nieuw wachtwoord" />
+        <input type="password" id="head-confirm-password" placeholder="Bevestig nieuw wachtwoord" />
+        <button id="head-change-btn">Wachtwoord wijzigen</button>
       </div>
       <div id="head-password-status" class="status"></div>
     </section>

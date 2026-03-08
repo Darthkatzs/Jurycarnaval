@@ -15,7 +15,7 @@ async function loadJudgeStatus(scoringId) {
   root.innerHTML = '';
 
   if (!judges.length || !categories.length) {
-    root.textContent = 'No status available yet.';
+    root.textContent = 'Nog geen status beschikbaar.';
     return;
   }
 
@@ -24,7 +24,7 @@ async function loadJudgeStatus(scoringId) {
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
   const thJudge = document.createElement('th');
-  thJudge.textContent = 'Judge';
+  thJudge.textContent = 'Jurylid';
   headRow.appendChild(thJudge);
   categories.forEach((cat) => {
     const th = document.createElement('th');
@@ -32,7 +32,7 @@ async function loadJudgeStatus(scoringId) {
     headRow.appendChild(th);
   });
   const thDone = document.createElement('th');
-  thDone.textContent = 'Scoring done';
+  thDone.textContent = 'Beoordeling klaar';
   headRow.appendChild(thDone);
 
   thead.appendChild(headRow);
@@ -47,13 +47,13 @@ async function loadJudgeStatus(scoringId) {
     categories.forEach((cat) => {
       const td = document.createElement('td');
       const cell = j.categories && j.categories[cat];
-      let badgeText = 'Missing';
+      let badgeText = 'Ontbrekend';
       let badgeClass = 'missing';
       if (cell && cell.locked) {
-        badgeText = 'Locked';
+        badgeText = 'Vergrendeld';
         badgeClass = 'locked';
       } else if (cell && cell.complete) {
-        badgeText = 'Complete';
+        badgeText = 'Voltooid';
         badgeClass = 'complete';
       }
       const span = document.createElement('span');
@@ -66,7 +66,7 @@ async function loadJudgeStatus(scoringId) {
     const doneSpan = document.createElement('span');
     const isDone = !!j.done;
     doneSpan.className = `judge-status-badge ${isDone ? 'locked' : 'missing'}`;
-    doneSpan.textContent = isDone ? 'Yes' : 'No';
+    doneSpan.textContent = isDone ? 'Ja' : 'Nee';
     tdDone.appendChild(doneSpan);
     tr.appendChild(tdDone);
 

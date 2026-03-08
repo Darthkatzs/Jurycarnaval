@@ -72,12 +72,12 @@ function status(msg, isError = false) {
 function updateDoneIndicator(isDone) {
   if (!doneIndicatorEl || !doneToggleBtn) return;
   if (isDone) {
-    doneIndicatorEl.textContent = 'You have marked this scoring as finished.';
-    doneToggleBtn.textContent = 'Unmark scoring as finished';
+    doneIndicatorEl.textContent = 'Je hebt deze beoordeling als afgewerkt gemarkeerd.';
+    doneToggleBtn.textContent = 'Markering als afgewerkt verwijderen';
     doneToggleBtn.style.background = '#16a34a';
   } else {
     doneIndicatorEl.textContent = '';
-    doneToggleBtn.textContent = 'Mark scoring as finished';
+    doneToggleBtn.textContent = 'Markeer beoordeling als afgewerkt';
     doneToggleBtn.style.background = '#6b7280';
   }
 }
@@ -158,7 +158,7 @@ async function toggleDone() {
       return;
     }
     updateDoneIndicator(!!data.done);
-    status(data.done ? 'Scoring marked as finished.' : 'Scoring unmarked as finished.');
+    status(data.done ? 'Beoordeling gemarkeerd als afgewerkt.' : 'Beoordeling niet langer als afgewerkt gemarkeerd.');
   } catch (err) {
     console.error(err);
     status('Failed to update done state', true);
@@ -289,11 +289,11 @@ async function submitScore(contestantId, points) {
 
     used.add(points);
     selected[contestantId] = points;
-    status('Saved');
+    status('Opgeslagen');
     renderContestants();
   } catch (err) {
     console.error(err);
-    status('Network error saving score', true);
+    status('Netwerkfout bij opslaan van score', true);
   }
 }
 
@@ -331,5 +331,5 @@ doneToggleBtn.addEventListener('click', () => {
 
 loadConfig().catch((err) => {
   console.error(err);
-  status('Failed to init app', true);
+  status('Kon de app niet initialiseren', true);
 });

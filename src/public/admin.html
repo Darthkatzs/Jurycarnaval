@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Carnaval Judge – Admin</title>
+  <title>Carnavalsjury – Admin</title>
   <style>
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; margin: 0; }
     .container { max-width: 960px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
@@ -13,17 +13,17 @@
 </head>
 <body>
   <main class="container">
-    <h1>Carnaval Judge — Admin</h1>
-    <p style="font-size:0.85rem;color:#9ca3af;">Use this page to see which judges have completed their scoring and to debug issues. For totals and exports, use the separate <code>/head</code> (head judge) page.</p>
-    <p style="font-size:0.85rem;color:#9ca3af;">Config editing: <a href="/admin/config-ui" style="color:#93c5fd;">Open config editor</a>.</p>
+    <h1>Carnavalsjury — Admin</h1>
+    <p style="font-size:0.85rem;color:#9ca3af;">Gebruik deze pagina om te zien welke juryleden klaar zijn met scoren en om problemen op te zoeken. Voor totalen en export ga je naar de aparte <code>/head</code>-pagina (hoofdjury).</p>
+    <p style="font-size:0.85rem;color:#9ca3af;">Configuratie aanpassen: <a href="/admin/config-ui" style="color:#93c5fd;">Open configuratie-editor</a>.</p>
 
     <label style="display:block;margin-top:0.5rem;font-size:0.85rem;">
-      Scoring
+      Beoordeling
       <select id="scoring-select" style="margin-top:0.25rem;padding:0.25rem 0.4rem;border-radius:0.375rem;border:1px solid #374151;background:#020617;color:#e5e7eb;"></select>
     </label>
 
-    <h2 style="margin-top:1.5rem;">Judge Lock / Completion Status</h2>
-    <p style="font-size:0.8rem;color:#9ca3af;">Per judge and category: <span class="judge-status-badge locked">Locked</span>, <span class="judge-status-badge complete">Complete</span>, or <span class="judge-status-badge missing">Missing</span>. The final column shows whether the judge has marked the scoring as done.</p>
+    <h2 style="margin-top:1.5rem;">Status per jurylid</h2>
+    <p style="font-size:0.8rem;color:#9ca3af;">Per jurylid en categorie: <span class="judge-status-badge locked">Vergrendeld</span>, <span class="judge-status-badge complete">Voltooid</span> of <span class="judge-status-badge missing">Ontbrekend</span>. De laatste kolom toont of het jurylid de beoordeling als afgewerkt heeft gemarkeerd.</p>
     <div id="status-table"></div>
   </main>
 
