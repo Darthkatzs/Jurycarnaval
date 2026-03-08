@@ -52,6 +52,7 @@
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
         <input type="password" id="head-old-password" placeholder="Current password" />
         <input type="password" id="head-new-password" placeholder="New password" />
+        <input type="password" id="head-confirm-password" placeholder="Confirm new password" />
         <button id="head-change-btn">Change Password</button>
       </div>
       <div id="head-password-status" class="status"></div>
@@ -73,6 +74,7 @@
     const headStatusRoot = document.getElementById('head-status-table');
     const headOldPasswordInput = document.getElementById('head-old-password');
     const headNewPasswordInput = document.getElementById('head-new-password');
+    const headConfirmPasswordInput = document.getElementById('head-confirm-password');
     const headChangeBtn = document.getElementById('head-change-btn');
     const headPasswordStatus = document.getElementById('head-password-status');
 
@@ -242,8 +244,13 @@
     headChangeBtn.addEventListener('click', async () => {
       const oldPwd = headOldPasswordInput.value || '';
       const newPwd = headNewPasswordInput.value || '';
-      if (!oldPwd || !newPwd) {
-        setHeadPasswordStatus('Please fill in both current and new password.', true);
+      const confirmPwd = headConfirmPasswordInput.value || '';
+      if (!oldPwd || !newPwd || !confirmPwd) {
+        setHeadPasswordStatus('Please fill in current, new, and confirmation password.', true);
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        setHeadPasswordStatus('New password and confirmation do not match.', true);
         return;
       }
       try {
