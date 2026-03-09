@@ -4,10 +4,6 @@ const judgeLoginBtn = document.getElementById('judge-login-btn');
 const loginStatusEl = document.getElementById('login-status');
 const judgeContent = document.getElementById('judge-content');
 const judgeInfoEl = document.getElementById('judge-info');
-const judgeOldPasswordInput = document.getElementById('judge-old-password');
-const judgeNewPasswordInput = document.getElementById('judge-new-password');
-const judgeConfirmPasswordInput = document.getElementById('judge-confirm-password');
-const judgeChangeBtn = document.getElementById('judge-change-btn');
 
 const scoringSelect = document.getElementById('scoring-select');
 const categorySelect = document.getElementById('category-select');
@@ -362,51 +358,6 @@ async function handleJudgeLogin() {
   }
 }
 
-async function handleJudgePasswordChange() {
-  if (!currentJudgeId) {
-    setLoginStatus('Je moet eerst inloggen.', true);
-    return;
-  }
-  const oldPwd = judgeOldPasswordInput.value || '';
-  const newPwd = judgeNewPasswordInput.value || '';
-  const confirmPwd = judgeConfirmPasswordInput.value || '';
-  const statusElLocal = document.getElementById('judge-password-status');
-
-  if (!oldPwd || !newPwd || !confirmPwd) {
-    statusElLocal.textContent = 'Vul huidig, nieuw en bevestig wachtwoord in.';
-    statusElLocal.classList.add('error');
-    return;
-  }
-  if (newPwd !== confirmPwd) {
-    statusElLocal.textContent = 'Nieuw wachtwoord en bevestiging komen niet overeen.';
-    statusElLocal.classList.add('error');
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/judge-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ judgeId: currentJudgeId, oldPassword: oldPwd, newPassword: newPwd }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      statusElLocal.textContent = data.error || `Fout ${res.status}`;
-      statusElLocal.classList.add('error');
-      return;
-    }
-    judgeOldPasswordInput.value = '';
-    judgeNewPasswordInput.value = '';
-    judgeConfirmPasswordInput.value = '';
-    statusElLocal.textContent = 'Wachtwoord bijgewerkt.';
-    statusElLocal.classList.remove('error');
-  } catch (err) {
-    console.error(err);
-    statusElLocal.textContent = 'Kon wachtwoord niet wijzigen.';
-    statusElLocal.classList.add('error');
-  }
-}
-
 scoringSelect.addEventListener('change', async () => {
   currentScoringId = scoringSelect.value;
   status('');
@@ -435,10 +386,6 @@ doneToggleBtn.addEventListener('click', () => {
 
 judgeLoginBtn.addEventListener('click', () => {
   handleJudgeLogin();
-});
-
-judgeChangeBtn.addEventListener('click', () => {
-  handleJudgePasswordChange();
 });
 
 loadConfig().catch((err) => {
