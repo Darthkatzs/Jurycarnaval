@@ -54,6 +54,7 @@ async function loadConfig() {
 
   await refreshLockState();
   await refreshDoneState();
+  await refreshExistingScores();
   renderContestants();
 }
 
@@ -138,6 +139,28 @@ async function refreshDoneState() {
     updateDoneIndicator(!!data.done);
   } catch (err) {
     console.error('Failed to refresh done state', err);
+  }
+}
+
+async function refreshExistingScores() {
+  if (!currentScoringId || !currentCategory || !currentJudgeId) return;
+  try {
+    const res = await fetch(`/api/judge-scores?scoring=${encodeURIComponent(currentScoringId)}&category=${encodeURIComponent(currentCategory)}&judgeId=${encodeURIComponent(currentJudgeId)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const scoresMap = data.scores || {};
+    const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
+    const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
+    used.clear();
+    Object.keys(selected).forEach((cid) => { delete selected[cid]; });
+    Object.entries(scoresMap).forEach(([cid, pts]) => {
+      if (typeof pts === 'number') {
+        used.add(pts);
+        selected[Number(cid)] = pts;
+      }
+    });
+  } catch (err) {
+    console.error('Failed to refresh existing scores', err);
   }
 }
 
@@ -313,6 +336,7 @@ scoringSelect.addEventListener('change', async () => {
   repopulateCategories();
   await refreshLockState();
   await refreshDoneState();
+  await refreshExistingScores();
   renderContestants();
 });
 
@@ -320,6 +344,7 @@ categorySelect.addEventListener('change', async () => {
   currentCategory = categorySelect.value;
   status('');
   await refreshLockState();
+  await refreshExistingScores();
   renderContestants();
 });
 

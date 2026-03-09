@@ -329,6 +329,39 @@ app.post('/api/lock', (req, res) => {
   return res.json({ ok: true, locked: locks[scoringCfg.id][category][judge.id] });
 });
 
+// API to get existing scores for a judge/category within a scoring
+app.get('/api/judge-scores', (req, res) => {
+  const { scoring, category, judgeId } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (!scoringCfg.categories.includes(category)) {
+    return res.status(400).json({ error: 'Invalid category' });
+  }
+  const judge = JUDGES.find((j) => j.id === Number(judgeId));
+  if (!judge) {
+    return res.status(400).json({ error: 'Invalid judge' });
+  }
+
+  const byJudge = scores[scoringCfg.id]
+    && scores[scoringCfg.id][category]
+    && scores[scoringCfg.id][category][judge.id];
+
+  const result = {};
+  if (byJudge) {
+    Object.entries(byJudge).forEach(([cid, points]) => {
+      if (typeof points === 'number') {
+        result[cid] = points;
+      }
+    });
+  }
+
+  res.json({ scoring: scoringCfg.id, category, judgeId: judge.id, scores: result });
+});
+
 // API to submit a score for one judge / category / contestant within a scoring
 app.post('/api/score', (req, res) => {
   const { scoring, category, judgeId, contestantId, points } = req.body || {};
