@@ -114,6 +114,8 @@ const locks = persistedState.locks || {};
 const zeroed = persistedState.zeroed || {};
 // Done flags: done[scoringId][judgeId] = true/false (judge finished entire scoring)
 const done = persistedState.done || {};
+// Judge passwords: judgePasswords[judgeId] = string (not exposed via APIs)
+const judgePasswords = persistedState.judgePasswords || {};
 
 // Ensure all structures exist for known scorings
 for (const scoringId of SCORING_IDS) {
@@ -130,11 +132,19 @@ for (const scoringId of SCORING_IDS) {
   }
 }
 
+// Ensure judgePasswords has a default of "password" for each judge
+for (const judge of JUDGES) {
+  if (!judgePasswords[judge.id]) {
+    judgePasswords[judge.id] = 'password';
+  }
+}
+
 // Keep persistedState references pointing at live objects
 persistedState.scores = scores;
 persistedState.locks = locks;
 persistedState.zeroed = zeroed;
 persistedState.done = done;
+persistedState.judgePasswords = judgePasswords;
 
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -160,9 +170,42 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-// Admin API to get raw config JSON
+// Admin API to get raw config JSON (does not expose judge passwords)
 app.get('/admin/config', (req, res) => {
   res.json(config);
+});
+
+// Judge login: verify judgeId + password (does not return password)
+app.post('/api/judge-login', (req, res) => {
+  const { judgeId, password } = req.body || {};
+  const judge = JUDGES.find((j) => j.id === Number(judgeId));
+  if (!judge) {
+    return res.status(400).json({ error: 'Ongeldig jurylid' });
+  }
+  const stored = judgePasswords[judge.id] || 'password';
+  if (String(password || '') !== String(stored)) {
+    return res.status(401).json({ error: 'Verkeerd wachtwoord' });
+  }
+  res.json({ ok: true, judgeId: judge.id, judgeName: judge.name });
+});
+
+// Judge password change
+app.post('/api/judge-password', (req, res) => {
+  const { judgeId, oldPassword, newPassword } = req.body || {};
+  const judge = JUDGES.find((j) => j.id === Number(judgeId));
+  if (!judge) {
+    return res.status(400).json({ error: 'Ongeldig jurylid' });
+  }
+  const stored = judgePasswords[judge.id] || 'password';
+  if (String(oldPassword || '') !== String(stored)) {
+    return res.status(401).json({ error: 'Huidig wachtwoord klopt niet' });
+  }
+  if (!newPassword || String(newPassword).length < 4) {
+    return res.status(400).json({ error: 'Nieuw wachtwoord moet minstens 4 tekens lang zijn' });
+  }
+  judgePasswords[judge.id] = String(newPassword);
+  saveState();
+  res.json({ ok: true });
 });
 
 // Admin API to update config JSON

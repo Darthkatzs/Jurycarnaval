@@ -1,4 +1,14 @@
 const judgeSelect = document.getElementById('judge-select');
+const judgePasswordInput = document.getElementById('judge-password');
+const judgeLoginBtn = document.getElementById('judge-login-btn');
+const loginStatusEl = document.getElementById('login-status');
+const judgeContent = document.getElementById('judge-content');
+const judgeInfoEl = document.getElementById('judge-info');
+const judgeOldPasswordInput = document.getElementById('judge-old-password');
+const judgeNewPasswordInput = document.getElementById('judge-new-password');
+const judgeConfirmPasswordInput = document.getElementById('judge-confirm-password');
+const judgeChangeBtn = document.getElementById('judge-change-btn');
+
 const scoringSelect = document.getElementById('scoring-select');
 const categorySelect = document.getElementById('category-select');
 const contestantsEl = document.getElementById('contestants');
@@ -10,6 +20,7 @@ const doneIndicatorEl = document.getElementById('done-indicator');
 let config = null;
 let currentScoringId = null;
 let currentJudgeId = null;
+let currentJudgeName = null;
 let currentCategory = null;
 // usedScores[scoringId][category][judgeId] = Set of points used
 let usedScores = {};
@@ -21,12 +32,12 @@ let lockState = {};
 async function loadConfig() {
   const res = await fetch('/api/config');
   if (!res.ok) {
-    status('Failed to load config', true);
+    status('Kon de configuratie niet laden', true);
     return;
   }
   config = await res.json();
 
-  // Populate judges
+  // Populate judges for login
   judgeSelect.innerHTML = '';
   config.JUDGES.forEach((j) => {
     const opt = document.createElement('option');
@@ -34,7 +45,6 @@ async function loadConfig() {
     opt.textContent = j.name;
     judgeSelect.appendChild(opt);
   });
-  currentJudgeId = config.JUDGES[0]?.id;
 
   // Populate scorings
   scoringSelect.innerHTML = '';
@@ -51,11 +61,6 @@ async function loadConfig() {
 
   // Populate categories for current scoring
   repopulateCategories();
-
-  await refreshLockState();
-  await refreshDoneState();
-  await refreshExistingScores();
-  renderContestants();
 }
 
 function labelForCategory(cat) {
@@ -68,6 +73,11 @@ function labelForCategory(cat) {
 function status(msg, isError = false) {
   statusEl.textContent = msg || '';
   statusEl.classList.toggle('error', !!isError);
+}
+
+function setLoginStatus(msg, isError = false) {
+  loginStatusEl.textContent = msg || '';
+  loginStatusEl.classList.toggle('error', !!isError);
 }
 
 function updateDoneIndicator(isDone) {
@@ -168,7 +178,7 @@ async function toggleDone() {
   if (!currentScoringId || !currentJudgeId) return;
   const currentlyDoneText = doneIndicatorEl && doneIndicatorEl.textContent;
   const wantDone = !currentlyDoneText; // if there is text, assume marked done
-  status('Saving...');
+  status('Bezig met opslaan...');
   try {
     const res = await fetch('/api/done', {
       method: 'POST',
@@ -177,7 +187,7 @@ async function toggleDone() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      status(data.error || `Error ${res.status}`, true);
+      status(data.error || `Fout ${res.status}`, true);
       return;
     }
     updateDoneIndicator(!!data.done);
@@ -208,7 +218,7 @@ async function toggleLock() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      status(data.error || `Error ${res.status}`, true);
+      status(data.error || `Fout ${res.status}`, true);
       return;
     }
     if (!lockState[currentScoringId]) lockState[currentScoringId] = {};
@@ -245,8 +255,6 @@ function renderContestants() {
     const scoresDiv = document.createElement('div');
     scoresDiv.className = 'scores';
 
-    // TODO: once zero overrides are surfaced to the client, we can grey-out rows here.
-
     allowed.forEach((points) => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -278,9 +286,9 @@ function renderContestants() {
 }
 
 async function submitScore(contestantId, points) {
-  if (!config || !currentScoringId) return;
+  if (!config || !currentScoringId || !currentJudgeId) return;
 
-  status('Saving...');
+  status('Bezig met opslaan...');
 
   try {
     const res = await fetch('/api/score', {
@@ -298,17 +306,15 @@ async function submitScore(contestantId, points) {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      status(data.error || `Error ${res.status}`, true);
+      status(data.error || `Fout ${res.status}`, true);
       return;
     }
 
-    // Update used/selected scores for this judge/category within this scoring
     const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
     const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
 
     const previous = selected[contestantId];
     if (typeof previous === 'number' && previous !== points) {
-      // Free up the previously used score value for this judge/category
       used.delete(previous);
     }
 
@@ -322,13 +328,84 @@ async function submitScore(contestantId, points) {
   }
 }
 
-judgeSelect.addEventListener('change', async () => {
-  currentJudgeId = Number(judgeSelect.value);
-  status('');
-  await refreshLockState();
-  await refreshDoneState();
-  renderContestants();
-});
+async function handleJudgeLogin() {
+  const judgeId = Number(judgeSelect.value);
+  const password = judgePasswordInput.value || '';
+  if (!judgeId || !password) {
+    setLoginStatus('Gelieve jurylid en wachtwoord in te vullen.', true);
+    return;
+  }
+  try {
+    const res = await fetch('/api/judge-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeId, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setLoginStatus(data.error || `Fout ${res.status}`, true);
+      return;
+    }
+    currentJudgeId = data.judgeId;
+    currentJudgeName = data.judgeName;
+    judgeInfoEl.textContent = `Ingelogd als ${currentJudgeName}`;
+    document.getElementById('login-section').style.display = 'none';
+    judgeContent.style.display = 'block';
+    setLoginStatus('');
+    await refreshLockState();
+    await refreshDoneState();
+    await refreshExistingScores();
+    renderContestants();
+  } catch (err) {
+    console.error(err);
+    setLoginStatus('Kon niet inloggen.', true);
+  }
+}
+
+async function handleJudgePasswordChange() {
+  if (!currentJudgeId) {
+    setLoginStatus('Je moet eerst inloggen.', true);
+    return;
+  }
+  const oldPwd = judgeOldPasswordInput.value || '';
+  const newPwd = judgeNewPasswordInput.value || '';
+  const confirmPwd = judgeConfirmPasswordInput.value || '';
+  const statusElLocal = document.getElementById('judge-password-status');
+
+  if (!oldPwd || !newPwd || !confirmPwd) {
+    statusElLocal.textContent = 'Vul huidig, nieuw en bevestig wachtwoord in.';
+    statusElLocal.classList.add('error');
+    return;
+  }
+  if (newPwd !== confirmPwd) {
+    statusElLocal.textContent = 'Nieuw wachtwoord en bevestiging komen niet overeen.';
+    statusElLocal.classList.add('error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/judge-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judgeId: currentJudgeId, oldPassword: oldPwd, newPassword: newPwd }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      statusElLocal.textContent = data.error || `Fout ${res.status}`;
+      statusElLocal.classList.add('error');
+      return;
+    }
+    judgeOldPasswordInput.value = '';
+    judgeNewPasswordInput.value = '';
+    judgeConfirmPasswordInput.value = '';
+    statusElLocal.textContent = 'Wachtwoord bijgewerkt.';
+    statusElLocal.classList.remove('error');
+  } catch (err) {
+    console.error(err);
+    statusElLocal.textContent = 'Kon wachtwoord niet wijzigen.';
+    statusElLocal.classList.add('error');
+  }
+}
 
 scoringSelect.addEventListener('change', async () => {
   currentScoringId = scoringSelect.value;
@@ -354,6 +431,14 @@ lockToggleBtn.addEventListener('click', () => {
 
 doneToggleBtn.addEventListener('click', () => {
   toggleDone();
+});
+
+judgeLoginBtn.addEventListener('click', () => {
+  handleJudgeLogin();
+});
+
+judgeChangeBtn.addEventListener('click', () => {
+  handleJudgePasswordChange();
 });
 
 loadConfig().catch((err) => {
