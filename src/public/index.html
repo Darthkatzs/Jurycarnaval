@@ -18,6 +18,7 @@
     .status { margin-top: 0.75rem; font-size: 0.85rem; color: #9ca3af; min-height: 1.2rem; }
     .status.error { color: #f97373; }
     .done-indicator { margin-top: 0.25rem; font-size: 0.8rem; color: #9ca3af; }
+    .small-link { font-size: 0.8rem; color:#93c5fd; text-decoration:underline; cursor:pointer; margin-top:0.5rem; display:inline-block; }
   </style>
 </head>
 <body>
@@ -58,16 +59,9 @@
 
       <div id="contestants"></div>
 
-      <h3 style="margin-top:1.5rem;font-size:0.95rem;">Wachtwoord wijzigen</h3>
-      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-        <input type="password" id="judge-old-password" placeholder="Huidig wachtwoord" />
-        <input type="password" id="judge-new-password" placeholder="Nieuw wachtwoord" />
-        <input type="password" id="judge-confirm-password" placeholder="Bevestig nieuw wachtwoord" />
-        <button type="button" id="judge-change-btn" style="padding:0.35rem 0.75rem;border-radius:0.5rem;border:none;background:#4f46e5;color:#fff;font-size:0.8rem;">Wachtwoord wijzigen</button>
-      </div>
-      <div id="judge-password-status" class="status"></div>
-
       <div id="status" class="status"></div>
+
+      <a href="/judge-password.html" class="small-link">Wachtwoord wijzigen</a>
     </section>
   </main>
 

@@ -628,6 +628,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Judge password change UI
+app.get('/judge-password.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'judge-password.html'));
+});
+
 // Admin overview UI
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
