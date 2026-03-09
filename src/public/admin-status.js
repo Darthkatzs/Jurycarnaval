@@ -6,7 +6,7 @@ async function loadJudgeStatus(scoringId) {
     return;
   }
   const data = await res.json();
-  const root = document.getElementById('status-table');
+  const root = document.getElementById('status-table') || document.getElementById('head-status-table');
   if (!root) return;
 
   const categories = data.categories || [];
