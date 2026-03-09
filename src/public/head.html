@@ -248,8 +248,12 @@
 
     exportBtn.addEventListener('click', () => {
       const scoring = scoringSelect.value;
-      const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
-      const url = `/head/export.xlsx${query}`;
+      let query = '';
+      const params = new URLSearchParams();
+      if (scoring) params.set('scoring', scoring);
+      if (headPassword) params.set('password', headPassword);
+      const qs = params.toString();
+      const url = `/head/export.xlsx${qs ? `?${qs}` : ''}`;
       const a = document.createElement('a');
       a.href = url;
       a.download = '';
