@@ -3,15 +3,15 @@
 This document describes how the Jurycarnaval app is structured so you can confidently pick it up on another machine or extend it later.
 
 - Runtime: Node.js + Express
-- Persistence: JSON files on disk (`config.json`, `state.json`)
+- Persistence: PostgreSQL on Railway (`DATABASE_URL` / `POSTGRES_URL`), with JSON files on disk as the local fallback (`config.json`, `state.json`)
 - Frontend: static HTML/CSS/JS, no framework
 
 ## Directory layout
 
 At repo root:
 
-- `config.json` – configuration (judges, scorings, contestants, categories, allowed scores)
-- `state.json` – runtime state (scores, locks, zero overrides, done flags, head/judge passwords)
+- `config.json` – seed/local fallback configuration (judges, scorings, contestants, categories, allowed scores)
+- `state.json` – seed/local fallback runtime state (scores, locks, zero overrides, done flags, head/judge passwords)
 - `package.json` / `package-lock.json` – dependencies and scripts
 - `src/server.js` – main Express server and API implementation
 - `src/public/` – all static assets for judge, admin and head UIs
@@ -26,7 +26,18 @@ At repo root:
 - `head.html` – head judge UI (totals, status, export, head password management)
 - `judge-password.html` – separate page to change a judge's password
 
-## Configuration model (`config.json`)
+## Persistence model
+
+Runtime persistence is handled by `src/storage.js`:
+
+- If `DATABASE_URL` or `POSTGRES_URL` is present, the app connects to PostgreSQL and creates an `app_storage` table if needed.
+- `app_storage` stores two JSONB records: key `config` and key `state`.
+- On first database boot, missing records are seeded from local `config.json` and `state.json`.
+- If no database URL is configured, the same storage API falls back to reading/writing `config.json` and `state.json` directly for local development.
+
+This keeps the public API unchanged while avoiding Railway's ephemeral filesystem for live event data.
+
+## Configuration model (`config` storage / `config.json` fallback)
 
 `config.json` configures:
 
@@ -74,7 +85,7 @@ Notes:
 
 The server includes a small migration path from an older flat config (single scoring) into `scorings.groups` / `scorings.floats` for backwards compatibility.
 
-## State model (`state.json`)
+## State model (`state` storage / `state.json` fallback)
 
 `state.json` is maintained exclusively by the server.
 
@@ -132,8 +143,8 @@ There is a migration step at startup to wrap older (pre-scoring) `scores/locks/z
 
 The server:
 
-1. Loads `config.json` and normalises it into the multi-scoring model.
-2. Loads `state.json` (if present), applying migrations.
+1. Loads config from Postgres when configured, otherwise from `config.json`, then normalises it into the multi-scoring model.
+2. Loads state from Postgres when configured, otherwise from `state.json`, applying migrations.
 3. Exposes JSON APIs for judges, admin, and head judge.
 4. Serves static assets from `src/public/`.
 

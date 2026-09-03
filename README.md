@@ -8,7 +8,7 @@ It is designed for:
 - Multiple *scorings* (e.g. **groups** and **floats**), each with its own contestants and categories.
 - Scoring under time pressure on mobile phones, over a local network or simple public deployment.
 
-The app is intentionally simple: JSON config/state on disk, a single Node/Express server, and static HTML/JS frontends.
+The app is intentionally simple: a single Node/Express server, static HTML/JS frontends, and a tiny persistence layer that uses PostgreSQL on Railway or JSON files for local development.
 
 ## Features
 
@@ -27,14 +27,14 @@ The app is intentionally simple: JSON config/state on disk, a single Node/Expres
 - **Admin view**
   - `/admin` shows a matrix of per-judge, per-category completion/lock state.
   - `/admin/config-ui` (if enabled) can be used to edit `config.json`.
-- **File-based persistence**
-  - `config.json` for configuration (judges, scorings, contestants, categories, scores allowed).
-  - `state.json` for scores, locks, zero overrides, done flags, and passwords.
+- **Railway-friendly persistence**
+  - Uses PostgreSQL automatically when `DATABASE_URL` or `POSTGRES_URL` is set.
+  - Falls back to local JSON files when no database URL is configured.
 
 ## Tech stack
 
 - Node.js + Express
-- File-backed JSON for config and state (no database)
+- PostgreSQL via `pg` on Railway; file-backed JSON fallback locally
 - Frontend: plain HTML/CSS/JS
 - Excel export via `xlsx` package
 
@@ -71,7 +71,11 @@ The app is intended to be deployed on Railway or a similar Node host.
 
 - Railway should run `npm start`.
 - The app binds to `process.env.PORT` automatically.
-- Ensure `config.json` and `state.json` are persisted between deploys (volume, mounted folder, or by checking them into the repo and treating `state.json` as ephemeral).
+- Add a Railway PostgreSQL database to the service so Railway injects `DATABASE_URL`.
+- On first boot with Postgres, the app seeds the database from the checked-in `config.json` and any existing local `state.json`.
+- Runtime config edits, scores, locks, done flags, zero overrides, and passwords are stored in the `app_storage` table as JSONB records.
+
+Local development still works without Postgres; if neither `DATABASE_URL` nor `POSTGRES_URL` is set, the app reads/writes `config.json` and `state.json` on disk.
 
 ## URLs and roles
 
@@ -116,6 +120,10 @@ The app is intended to be deployed on Railway or a similar Node host.
 
 ## Configuration
 
+### Configuration storage
+
+On Railway/Postgres, config is stored under key `config` in the `app_storage` table. Locally, without a database URL, `config.json` is used directly.
+
 ### `config.json`
 
 `config.json` defines judges and *scorings*.
@@ -156,6 +164,10 @@ Notes:
 - `judges` is a flat list used everywhere.
 - `scorings` is a map keyed by scoring id (e.g. `"groups"`, `"floats"`).
 - Each scoring defines its own contestants, categories, and allowedScores.
+
+### State storage
+
+On Railway/Postgres, state is stored under key `state` in the `app_storage` table. Locally, without a database URL, `state.json` is used directly.
 
 ### `state.json`
 

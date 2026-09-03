@@ -1,88 +1,88 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const bodyParser = require('body-parser');
 const XLSX = require('xlsx');
+const { createStorage, readJsonFile } = require('./storage');
 
 const app = express();
 const PORT = process.env.PORT || process.env.CARNAVAL_JUDGE_PORT || 3100;
-
-// Load config from JSON file
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 const STATE_PATH = path.join(__dirname, '..', 'state.json');
-let config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+const DEFAULT_STATE = { scores: {}, locks: {}, zeroed: {}, done: {}, headPassword: 'password', judgePasswords: {} };
+const storage = createStorage({ configPath: CONFIG_PATH, statePath: STATE_PATH });
 
-// Ensure config uses multi-scoring structure; if not, migrate in-memory
-if (!config.scorings) {
-  const legacyCategories = config.categories || ['entertainment', 'kostumering', 'carnavalesk'];
-  const legacyContestants = config.contestants || [];
-  const legacyAllowed = Array.isArray(config.allowedScores) && config.allowedScores.length
-    ? config.allowedScores.map(Number)
-    : [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+let config = null;
+let persistedState = null;
+let scores = {};
+let locks = {};
+let zeroed = {};
+let done = {};
+let judgePasswords = {};
+let JUDGES = [];
+let SCORING_IDS = [];
 
-  config.scorings = {
-    groups: {
-      id: 'groups',
-      label: 'Groups',
-      contestants: legacyContestants,
-      categories: legacyCategories,
-      allowedScores: legacyAllowed,
-    },
-    floats: {
-      id: 'floats',
-      label: 'Floats',
-      contestants: [],
-      categories: legacyCategories,
-      allowedScores: legacyAllowed,
-    },
-  };
-  config.defaultScoring = config.defaultScoring || 'groups';
-}
+function normaliseConfig(inputConfig) {
+  const nextConfig = inputConfig || {};
 
-// Load persisted scoring state if present (scores, locks, zeroed flags, done flags, head judge password)
-let persistedState = { scores: {}, locks: {}, zeroed: {}, done: {}, headPassword: 'password' };
-try {
-  if (fs.existsSync(STATE_PATH)) {
-    const raw = fs.readFileSync(STATE_PATH, 'utf8');
-    persistedState = Object.assign({}, persistedState, JSON.parse(raw));
+  // Ensure config uses multi-scoring structure; if not, migrate in-memory.
+  if (!nextConfig.scorings) {
+    const legacyCategories = nextConfig.categories || ['entertainment', 'kostumering', 'carnavalesk'];
+    const legacyContestants = nextConfig.contestants || [];
+    const legacyAllowed = Array.isArray(nextConfig.allowedScores) && nextConfig.allowedScores.length
+      ? nextConfig.allowedScores.map(Number)
+      : [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+    nextConfig.scorings = {
+      groups: {
+        id: 'groups',
+        label: 'Groups',
+        contestants: legacyContestants,
+        categories: legacyCategories,
+        allowedScores: legacyAllowed,
+      },
+      floats: {
+        id: 'floats',
+        label: 'Floats',
+        contestants: [],
+        categories: legacyCategories,
+        allowedScores: legacyAllowed,
+      },
+    };
+    nextConfig.defaultScoring = nextConfig.defaultScoring || 'groups';
   }
-} catch (err) {
-  console.warn('Failed to read state.json, starting fresh:', err.message);
+
+  return nextConfig;
 }
 
-// Migrate legacy (no scoring dimension) state into default scoring if needed
-if (persistedState && persistedState.scores && !Object.values(persistedState.scores)[0]?.groups) {
-  const defaultScoringKey = config.defaultScoring || 'groups';
-  const migrated = { scores: {}, locks: {}, zeroed: {} };
-  migrated.scores[defaultScoringKey] = persistedState.scores || {};
-  migrated.locks[defaultScoringKey] = persistedState.locks || {};
-  migrated.zeroed[defaultScoringKey] = persistedState.zeroed || {};
-  persistedState = migrated;
+function stateLooksLegacy(state, scoringIds) {
+  const scoreKeys = Object.keys((state && state.scores) || {});
+  if (scoreKeys.length === 0) return false;
+  return !scoreKeys.some((key) => scoringIds.includes(key));
 }
 
-function saveState() {
-  try {
-    fs.writeFileSync(STATE_PATH, JSON.stringify(persistedState, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Failed to write state.json:', err.message);
+function normaliseState(inputState, currentConfig) {
+  const nextState = Object.assign({}, DEFAULT_STATE, inputState || {});
+  const scoringIds = Object.keys((currentConfig && currentConfig.scorings) || {});
+
+  // Migrate legacy (no scoring dimension) state into default scoring if needed.
+  if (stateLooksLegacy(nextState, scoringIds)) {
+    const defaultScoringKey = currentConfig.defaultScoring || scoringIds[0] || 'groups';
+    nextState.scores = { [defaultScoringKey]: nextState.scores || {} };
+    nextState.locks = { [defaultScoringKey]: nextState.locks || {} };
+    nextState.zeroed = { [defaultScoringKey]: nextState.zeroed || {} };
+    nextState.done = nextState.done || {};
   }
-}
 
-function getHeadPassword() {
-  return typeof persistedState.headPassword === 'string' && persistedState.headPassword.length
-    ? persistedState.headPassword
+  nextState.scores = nextState.scores || {};
+  nextState.locks = nextState.locks || {};
+  nextState.zeroed = nextState.zeroed || {};
+  nextState.done = nextState.done || {};
+  nextState.judgePasswords = nextState.judgePasswords || {};
+  nextState.headPassword = typeof nextState.headPassword === 'string' && nextState.headPassword.length
+    ? nextState.headPassword
     : 'password';
-}
 
-function checkHeadPassword(req, res) {
-  const provided =
-    (req.headers['x-head-password'] && String(req.headers['x-head-password'])) ||
-    (req.query && req.query.password ? String(req.query.password) : '');
-  if (provided !== getHeadPassword()) {
-    res.status(401).json({ error: 'Invalid head judge password' });
-    return false;
-  }
-  return true;
+  return nextState;
 }
 
 function getJudges() {
@@ -103,48 +103,110 @@ function getScoringConfig(scoringId) {
   return { id: effectiveId, ...cfg };
 }
 
-const JUDGES = getJudges();
-const SCORING_IDS = getScoringIds();
+function bindRuntimeState() {
+  JUDGES = getJudges();
+  SCORING_IDS = getScoringIds();
 
-// Scores are stored as: scores[scoringId][category][judgeId][contestantId] = points
-const scores = persistedState.scores || {};
-// Lock state: locks[scoringId][category][judgeId] = true/false
-const locks = persistedState.locks || {};
-// Zero overrides: zeroed[scoringId][category][contestantId] = true (disqualify for all judges in that category)
-const zeroed = persistedState.zeroed || {};
-// Done flags: done[scoringId][judgeId] = true/false (judge finished entire scoring)
-const done = persistedState.done || {};
-// Judge passwords: judgePasswords[judgeId] = string (not exposed via APIs)
-const judgePasswords = persistedState.judgePasswords || {};
+  // Scores are stored as: scores[scoringId][category][judgeId][contestantId] = points
+  scores = persistedState.scores || {};
+  // Lock state: locks[scoringId][category][judgeId] = true/false
+  locks = persistedState.locks || {};
+  // Zero overrides: zeroed[scoringId][category][contestantId] = true (disqualify for all judges in that category)
+  zeroed = persistedState.zeroed || {};
+  // Done flags: done[scoringId][judgeId] = true/false (judge finished entire scoring)
+  done = persistedState.done || {};
+  // Judge passwords: judgePasswords[judgeId] = string (not exposed via APIs)
+  judgePasswords = persistedState.judgePasswords || {};
 
-// Ensure all structures exist for known scorings
-for (const scoringId of SCORING_IDS) {
-  const scoringCfg = getScoringConfig(scoringId);
-  if (!scores[scoringId]) scores[scoringId] = {};
-  if (!locks[scoringId]) locks[scoringId] = {};
-  if (!zeroed[scoringId]) zeroed[scoringId] = {};
-  if (!done[scoringId]) done[scoringId] = {};
+  // Ensure all structures exist for known scorings.
+  for (const scoringId of SCORING_IDS) {
+    const scoringCfg = getScoringConfig(scoringId);
+    if (!scores[scoringId]) scores[scoringId] = {};
+    if (!locks[scoringId]) locks[scoringId] = {};
+    if (!zeroed[scoringId]) zeroed[scoringId] = {};
+    if (!done[scoringId]) done[scoringId] = {};
 
-  for (const cat of scoringCfg.categories || []) {
-    if (!scores[scoringId][cat]) scores[scoringId][cat] = {};
-    if (!locks[scoringId][cat]) locks[scoringId][cat] = {};
-    if (!zeroed[scoringId][cat]) zeroed[scoringId][cat] = {};
+    for (const cat of scoringCfg.categories || []) {
+      if (!scores[scoringId][cat]) scores[scoringId][cat] = {};
+      if (!locks[scoringId][cat]) locks[scoringId][cat] = {};
+      if (!zeroed[scoringId][cat]) zeroed[scoringId][cat] = {};
+    }
+  }
+
+  // Ensure judgePasswords has a default of "password" for each judge.
+  for (const judge of JUDGES) {
+    if (!judgePasswords[judge.id]) {
+      judgePasswords[judge.id] = 'password';
+    }
+  }
+
+  // Keep persistedState references pointing at live objects.
+  persistedState.scores = scores;
+  persistedState.locks = locks;
+  persistedState.zeroed = zeroed;
+  persistedState.done = done;
+  persistedState.judgePasswords = judgePasswords;
+}
+
+async function initializeRuntime() {
+  const fileConfig = readJsonFile(CONFIG_PATH, { judges: [], scorings: {}, defaultScoring: undefined });
+  const fileState = readJsonFile(STATE_PATH, DEFAULT_STATE);
+  const loaded = await storage.load({ config: fileConfig, state: fileState });
+
+  config = normaliseConfig(loaded.config);
+  persistedState = normaliseState(loaded.state, config);
+  bindRuntimeState();
+
+  // Persist seed/migration data to Postgres. In local file mode, avoid rewriting
+  // checked-in config.json or creating state.json until there is an actual change.
+  if (storage.type === 'postgres') {
+    await Promise.all([storage.saveConfig(config), storage.saveState(persistedState)]);
+  }
+  console.log(`Persistence backend: ${storage.type}`);
+}
+
+async function saveState(res) {
+  try {
+    await storage.saveState(persistedState);
+    return true;
+  } catch (err) {
+    console.error(`Failed to write state to ${storage.type}:`, err.message);
+    if (res && !res.headersSent) {
+      res.status(500).json({ error: 'Failed to persist state' });
+    }
+    return false;
   }
 }
 
-// Ensure judgePasswords has a default of "password" for each judge
-for (const judge of JUDGES) {
-  if (!judgePasswords[judge.id]) {
-    judgePasswords[judge.id] = 'password';
+async function saveConfig(nextConfig, res) {
+  try {
+    await storage.saveConfig(nextConfig);
+    return true;
+  } catch (err) {
+    console.error(`Failed to write config to ${storage.type}:`, err.message);
+    if (res && !res.headersSent) {
+      res.status(500).json({ error: 'Failed to persist config' });
+    }
+    return false;
   }
 }
 
-// Keep persistedState references pointing at live objects
-persistedState.scores = scores;
-persistedState.locks = locks;
-persistedState.zeroed = zeroed;
-persistedState.done = done;
-persistedState.judgePasswords = judgePasswords;
+function getHeadPassword() {
+  return typeof persistedState.headPassword === 'string' && persistedState.headPassword.length
+    ? persistedState.headPassword
+    : 'password';
+}
+
+function checkHeadPassword(req, res) {
+  const provided =
+    (req.headers['x-head-password'] && String(req.headers['x-head-password'])) ||
+    (req.query && req.query.password ? String(req.query.password) : '');
+  if (provided !== getHeadPassword()) {
+    res.status(401).json({ error: 'Invalid head judge password' });
+    return false;
+  }
+  return true;
+}
 
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -190,7 +252,7 @@ app.post('/api/judge-login', (req, res) => {
 });
 
 // Judge password change
-app.post('/api/judge-password', (req, res) => {
+app.post('/api/judge-password', async (req, res) => {
   const { judgeId, oldPassword, newPassword } = req.body || {};
   const judge = JUDGES.find((j) => j.id === Number(judgeId));
   if (!judge) {
@@ -204,12 +266,12 @@ app.post('/api/judge-password', (req, res) => {
     return res.status(400).json({ error: 'Nieuw wachtwoord moet minstens 4 tekens lang zijn' });
   }
   judgePasswords[judge.id] = String(newPassword);
-  saveState();
+  if (!(await saveState(res))) return;
   res.json({ ok: true });
 });
 
 // Admin API to update config JSON
-app.post('/admin/config', (req, res) => {
+app.post('/admin/config', async (req, res) => {
   const next = req.body;
   if (!next || !Array.isArray(next.judges)) {
     return res.status(400).json({ error: 'Config must include judges[]' });
@@ -219,8 +281,11 @@ app.post('/admin/config', (req, res) => {
   }
 
   try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2), 'utf8');
-    config = next;
+    config = normaliseConfig(next);
+    persistedState = normaliseState(persistedState, config);
+    bindRuntimeState();
+    if (!(await saveConfig(config, res))) return;
+    if (!(await saveState(res))) return;
     res.json({ ok: true });
   } catch (err) {
     console.error('Failed to write config.json', err);
@@ -246,7 +311,7 @@ app.get('/api/done', (req, res) => {
 });
 
 // Set "done" status for a judge within a scoring
-app.post('/api/done', (req, res) => {
+app.post('/api/done', async (req, res) => {
   const { scoring, judgeId, done: wantDone } = req.body || {};
   let scoringCfg;
   try {
@@ -280,7 +345,7 @@ app.post('/api/done', (req, res) => {
 
   if (!done[scoringCfg.id]) done[scoringCfg.id] = {};
   done[scoringCfg.id][judge.id] = flag;
-  saveState();
+  if (!(await saveState(res))) return;
   res.json({ ok: true, done: flag });
 });
 
@@ -305,7 +370,7 @@ app.get('/api/lock', (req, res) => {
 });
 
 // Admin: set or clear zero override for a contestant in a scoring/category (0 = disabled for all judges)
-app.post('/admin/zero', (req, res) => {
+app.post('/admin/zero', async (req, res) => {
   const { scoring, category, contestantId, zero } = req.body || {};
   let scoringCfg;
   try {
@@ -328,12 +393,12 @@ app.post('/admin/zero', (req, res) => {
   } else {
     delete zeroed[scoringCfg.id][category][contestant.id];
   }
-  saveState();
+  if (!(await saveState(res))) return;
   res.json({ ok: true, zeroed: !!zeroed[scoringCfg.id][category][contestant.id] });
 });
 
 // Set lock status for a judge/category within a scoring
-app.post('/api/lock', (req, res) => {
+app.post('/api/lock', async (req, res) => {
   const { scoring, category, judgeId, locked } = req.body || {};
   let scoringCfg;
   try {
@@ -368,7 +433,7 @@ app.post('/api/lock', (req, res) => {
   if (!locks[scoringCfg.id][category]) locks[scoringCfg.id][category] = {};
 
   locks[scoringCfg.id][category][judge.id] = wantLocked;
-  saveState();
+  if (!(await saveState(res))) return;
   return res.json({ ok: true, locked: locks[scoringCfg.id][category][judge.id] });
 });
 
@@ -406,7 +471,7 @@ app.get('/api/judge-scores', (req, res) => {
 });
 
 // API to submit a score for one judge / category / contestant within a scoring
-app.post('/api/score', (req, res) => {
+app.post('/api/score', async (req, res) => {
   const { scoring, category, judgeId, contestantId, points } = req.body || {};
 
   let scoringCfg;
@@ -453,7 +518,7 @@ app.post('/api/score', (req, res) => {
   }
 
   usedForJudge[contestant.id] = Number(points);
-  saveState();
+  if (!(await saveState(res))) return;
 
   return res.json({ ok: true });
 });
@@ -648,6 +713,14 @@ app.get('/head', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'head.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Carnaval Judge listening on http://localhost:${PORT}`);
-});
+initializeRuntime()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Carnaval Judge listening on http://localhost:${PORT}`);
+    });
+  })
+  .catch(async (err) => {
+    console.error('Failed to start Carnaval Judge:', err);
+    await storage.close().catch(() => {});
+    process.exit(1);
+  });

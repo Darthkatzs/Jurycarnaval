@@ -1,0 +1,9 @@
+# Runtime state contains live scores and passwords.
+state.json
+
+# Dependencies are installed during build/deploy.
+node_modules/
+
+# Local environment and logs.
+.env
+*.log
