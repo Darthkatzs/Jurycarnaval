@@ -1,39 +1,166 @@
 {
   "judges": [
-    { "id": 1, "name": "Judge 1" },
-    { "id": 2, "name": "Judge 2" },
-    { "id": 3, "name": "Judge 3" },
-    { "id": 4, "name": "Judge 4" },
-    { "id": 5, "name": "Judge 5" },
-    { "id": 6, "name": "Judge 6" },
-    { "id": 7, "name": "Judge 7" },
-    { "id": 8, "name": "Judge 8" },
-    { "id": 9, "name": "Judge 9" },
-    { "id": 10, "name": "Judge 10" },
-    { "id": 11, "name": "Judge 11" }
+    {
+      "id": 1,
+      "name": "Judge 1"
+    },
+    {
+      "id": 2,
+      "name": "Judge 2"
+    },
+    {
+      "id": 3,
+      "name": "Judge 3"
+    },
+    {
+      "id": 4,
+      "name": "Judge 4"
+    },
+    {
+      "id": 5,
+      "name": "Judge 5"
+    },
+    {
+      "id": 6,
+      "name": "Judge 6"
+    },
+    {
+      "id": 7,
+      "name": "Judge 7"
+    },
+    {
+      "id": 8,
+      "name": "Judge 8"
+    },
+    {
+      "id": 9,
+      "name": "Judge 9"
+    },
+    {
+      "id": 10,
+      "name": "Judge 10"
+    },
+    {
+      "id": 11,
+      "name": "Judge 11"
+    }
   ],
   "scorings": {
     "groups": {
       "id": "groups",
       "label": "Groups",
       "contestants": [
-        { "id": 1, "name": "De Pasagers" },
-        { "id": 2, "name": "De Sparrebos" },
-        { "id": 3, "name": "De Maanblotters" }
+        {
+          "id": 9,
+          "name": "Kloes"
+        },
+        {
+          "id": 10,
+          "name": "Spartaboys"
+        },
+        {
+          "id": 14,
+          "name": "De Maanblotten"
+        },
+        {
+          "id": 15,
+          "name": "De Schuimbomme"
+        },
+        {
+          "id": 17,
+          "name": "De Scheve Kleppers"
+        },
+        {
+          "id": 19,
+          "name": "De Families"
+        },
+        {
+          "id": 20,
+          "name": "Daring Boys"
+        },
+        {
+          "id": 21,
+          "name": "De Dweilers"
+        },
+        {
+          "id": 23,
+          "name": "De Vliegmieters"
+        },
+        {
+          "id": 24,
+          "name": "De Zwiens"
+        },
+        {
+          "id": 26,
+          "name": "De Gommekes"
+        },
+        {
+          "id": 31,
+          "name": "Kanong"
+        },
+        {
+          "id": 35,
+          "name": "De Pekkers"
+        }
       ],
-      "categories": ["entertainment", "kostumering", "carnavalesk"],
-      "allowedScores": [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+      "categories": [
+        "entertainment",
+        "kostumering",
+        "carnavalesk"
+      ],
+      "allowedScores": [
+        13,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1
+      ]
     },
     "floats": {
       "id": "floats",
       "label": "Floats",
       "contestants": [
-        { "id": 1, "name": "De Pasagers" },
-        { "id": 2, "name": "De Sparrebos" },
-        { "id": 3, "name": "De Maanblotters" }
+        {
+          "id": 1,
+          "name": "De Pasagers"
+        },
+        {
+          "id": 2,
+          "name": "De Sparrebos"
+        },
+        {
+          "id": 3,
+          "name": "De Maanblotters"
+        }
       ],
-      "categories": ["entertainment", "kostumering", "carnavalesk"],
-      "allowedScores": [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+      "categories": [
+        "entertainment",
+        "kostumering",
+        "carnavalesk"
+      ],
+      "allowedScores": [
+        13,
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1
+      ]
     }
   },
   "defaultScoring": "groups"

@@ -54,6 +54,41 @@ function normaliseConfig(inputConfig) {
   return nextConfig;
 }
 
+function contestantIds(scoringConfig) {
+  return ((scoringConfig && scoringConfig.contestants) || []).map((contestant) => Number(contestant.id));
+}
+
+function shouldApplyFileGroupConfig(currentGroupConfig, fileGroupConfig) {
+  const currentIds = contestantIds(currentGroupConfig);
+  const fileIds = contestantIds(fileGroupConfig);
+
+  if (!fileIds.length || currentIds.join(',') === fileIds.join(',')) {
+    return false;
+  }
+
+  // Railway Postgres can already contain the old seed config. Only replace the
+  // placeholder groups list, not a deliberately edited DB config.
+  return currentIds.length === 0 || currentIds.join(',') === '1,2,3';
+}
+
+function applyFileBackedGroupConfigIfNeeded(loadedConfig, fileConfig) {
+  const nextConfig = normaliseConfig(loadedConfig || {});
+  const normalisedFileConfig = normaliseConfig(fileConfig || {});
+  const fileGroupConfig = normalisedFileConfig.scorings && normalisedFileConfig.scorings.groups;
+  const currentGroupConfig = nextConfig.scorings && nextConfig.scorings.groups;
+
+  if (!fileGroupConfig || !shouldApplyFileGroupConfig(currentGroupConfig, fileGroupConfig)) {
+    return { config: nextConfig, changed: false };
+  }
+
+  nextConfig.scorings.groups = {
+    ...(currentGroupConfig || {}),
+    ...fileGroupConfig,
+  };
+
+  return { config: nextConfig, changed: true };
+}
+
 function stateLooksLegacy(state, scoringIds) {
   const scoreKeys = Object.keys((state && state.scores) || {});
   if (scoreKeys.length === 0) return false;
@@ -149,17 +184,21 @@ function bindRuntimeState() {
 }
 
 async function initializeRuntime() {
-  const fileConfig = readJsonFile(CONFIG_PATH, { judges: [], scorings: {}, defaultScoring: undefined });
+  const fileConfig = normaliseConfig(readJsonFile(CONFIG_PATH, { judges: [], scorings: {}, defaultScoring: undefined }));
   const fileState = readJsonFile(STATE_PATH, DEFAULT_STATE);
   const loaded = await storage.load({ config: fileConfig, state: fileState });
+  const groupConfigMigration = applyFileBackedGroupConfigIfNeeded(loaded.config, fileConfig);
 
-  config = normaliseConfig(loaded.config);
+  config = normaliseConfig(groupConfigMigration.config);
   persistedState = normaliseState(loaded.state, config);
   bindRuntimeState();
 
   // Persist seed/migration data to Postgres. In local file mode, avoid rewriting
   // checked-in config.json or creating state.json until there is an actual change.
   if (storage.type === 'postgres') {
+    if (groupConfigMigration.changed) {
+      console.log('Applied file-backed groups scoring config to Postgres seed config');
+    }
     await Promise.all([storage.saveConfig(config), storage.saveState(persistedState)]);
   }
   console.log(`Persistence backend: ${storage.type}`);
