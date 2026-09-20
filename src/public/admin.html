@@ -8,6 +8,14 @@
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #020617; color: #e5e7eb; margin: 0; }
     .container { max-width: 960px; margin: 1.5rem auto; padding: 1rem; background: #020617; border-radius: 0.75rem; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
     h1 { margin-top: 0; }
+    .danger-panel { margin-top: 1.25rem; padding: 0.9rem; border: 1px solid #7f1d1d; border-radius: 0.75rem; background: rgba(127, 29, 29, 0.18); }
+    .danger-panel h2 { margin: 0 0 0.35rem; font-size: 1rem; color: #fecaca; }
+    .danger-panel p { margin: 0.25rem 0; font-size: 0.82rem; color: #fca5a5; }
+    .danger-button { margin-top: 0.65rem; padding: 0.5rem 0.8rem; border: 0; border-radius: 0.5rem; background: #dc2626; color: #fff; font-weight: 700; cursor: pointer; }
+    .danger-button:disabled { opacity: 0.65; cursor: not-allowed; }
+    .admin-action-status { margin-top: 0.5rem; font-size: 0.85rem; color: #9ca3af; }
+    .admin-action-status.error { color: #fca5a5; }
+    .admin-action-status.success { color: #86efac; }
   </style>
   <link rel="stylesheet" href="/admin-status.css" />
 </head>
@@ -25,11 +33,26 @@
     <h2 style="margin-top:1.5rem;">Status per jurylid</h2>
     <p style="font-size:0.8rem;color:#9ca3af;">Per jurylid en categorie: <span class="judge-status-badge locked">Vergrendeld</span>, <span class="judge-status-badge complete">Voltooid</span> of <span class="judge-status-badge missing">Ontbrekend</span>. De laatste kolom toont of het jurylid de beoordeling als afgewerkt heeft gemarkeerd.</p>
     <div id="status-table"></div>
+
+    <section class="danger-panel" aria-labelledby="danger-title">
+      <h2 id="danger-title">Scores wissen</h2>
+      <p>Dit wist alle opgeslagen scores, vergrendelingen, 0-markeringen en klaar-meldingen voor de geselecteerde beoordeling. Jurywachtwoorden en configuratie blijven behouden.</p>
+      <button id="clear-scoring-btn" class="danger-button" type="button">Wis scores voor deze beoordeling</button>
+      <div id="clear-scoring-status" class="admin-action-status" role="status"></div>
+    </section>
   </main>
 
   <script src="/admin-status.js"></script>
   <script>
     const scoringSelect = document.getElementById('scoring-select');
+    const clearScoringBtn = document.getElementById('clear-scoring-btn');
+    const clearScoringStatus = document.getElementById('clear-scoring-status');
+
+    function setClearScoringStatus(message, kind) {
+      clearScoringStatus.textContent = message || '';
+      clearScoringStatus.classList.toggle('error', kind === 'error');
+      clearScoringStatus.classList.toggle('success', kind === 'success');
+    }
 
     async function loadConfig() {
       const res = await fetch('/api/config');
@@ -50,9 +73,38 @@
 
     scoringSelect.addEventListener('change', async () => {
       try {
+        setClearScoringStatus('');
         await loadJudgeStatus(scoringSelect.value);
       } catch (err) {
         console.error(err);
+      }
+    });
+
+    clearScoringBtn.addEventListener('click', async () => {
+      const selectedLabel = scoringSelect.options[scoringSelect.selectedIndex]?.textContent || scoringSelect.value;
+      const confirmed = window.confirm(`Alle opgeslagen scores voor "${selectedLabel}" wissen? Dit kan niet ongedaan gemaakt worden.`);
+      if (!confirmed) return;
+
+      clearScoringBtn.disabled = true;
+      setClearScoringStatus('Scores wissen...', '');
+      try {
+        const res = await fetch('/admin/clear-scoring', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scoring: scoringSelect.value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setClearScoringStatus(data.error || 'Scores wissen is mislukt.', 'error');
+          return;
+        }
+        setClearScoringStatus('Scores gewist voor deze beoordeling.', 'success');
+        await loadJudgeStatus(scoringSelect.value);
+      } catch (err) {
+        console.error(err);
+        setClearScoringStatus('Netwerkfout bij scores wissen.', 'error');
+      } finally {
+        clearScoringBtn.disabled = false;
       }
     });
 

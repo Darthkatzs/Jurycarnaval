@@ -408,6 +408,36 @@ app.get('/api/lock', (req, res) => {
   res.json({ locked });
 });
 
+// Admin: delete saved scores/locks/zero overrides/done flags for one scoring or all scorings.
+app.post('/admin/clear-scoring', async (req, res) => {
+  const { scoring, all } = req.body || {};
+  const targetIds = all ? SCORING_IDS : [scoring || config.defaultScoring || SCORING_IDS[0]];
+
+  try {
+    targetIds.forEach((scoringId) => {
+      getScoringConfig(scoringId);
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  targetIds.forEach((scoringId) => {
+    delete scores[scoringId];
+    delete locks[scoringId];
+    delete zeroed[scoringId];
+    delete done[scoringId];
+  });
+
+  persistedState.scores = scores;
+  persistedState.locks = locks;
+  persistedState.zeroed = zeroed;
+  persistedState.done = done;
+  bindRuntimeState();
+
+  if (!(await saveState(res))) return;
+  res.json({ ok: true, cleared: targetIds });
+});
+
 // Admin: set or clear zero override for a contestant in a scoring/category (0 = disabled for all judges)
 app.post('/admin/zero', async (req, res) => {
   const { scoring, category, contestantId, zero } = req.body || {};
