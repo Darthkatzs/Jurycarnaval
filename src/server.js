@@ -759,8 +759,8 @@ app.get('/admin/status', (req, res) => {
   });
 });
 
-// Head judge export: Excel with totals and raw scores for a scoring (password protected)
-app.get('/head/export.xlsx', (req, res) => {
+// Head judge export: Excel with totals for a scoring (password protected)
+app.get('/head/export-totals.xlsx', (req, res) => {
   if (!checkHeadPassword(req, res)) return;
 
   const { scoring } = req.query || {};
@@ -782,9 +782,7 @@ app.get('/head/export.xlsx', (req, res) => {
     let overall = 0;
     for (const cat of categories) {
       let sum = 0;
-      const isZeroed = zeroed[scoringId]
-        && zeroed[scoringId][cat]
-        && zeroed[scoringId][cat][contestant.id];
+      const isZeroed = isContestantZeroed(scoringId, cat, contestant.id);
       if (!isZeroed) {
         for (const judge of JUDGES) {
           const map = scores[scoringId]
@@ -802,33 +800,62 @@ app.get('/head/export.xlsx', (req, res) => {
     totalsRows.push(row);
   }
 
-  // Build raw scores sheet data
-  const rawRows = [];
-  contestants.forEach((contestant) => {
-    const row = { Contestant: contestant.name };
-    categories.forEach((cat) => {
-      JUDGES.forEach((judge) => {
-        const key = `${cat} – ${judge.id}`;
+  const wb = XLSX.utils.book_new();
+  const totalsSheet = XLSX.utils.json_to_sheet(totalsRows);
+  XLSX.utils.book_append_sheet(wb, totalsSheet, `${scoringCfg.label || scoringId} Totals`);
+
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const filename = `jurycarnaval-${scoringId}-totals-${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+});
+
+// Head judge export: Excel with a sheet per judge (password protected)
+app.get('/head/export-judges.xlsx', (req, res) => {
+  if (!checkHeadPassword(req, res)) return;
+
+  const { scoring } = req.query || {};
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const scoringId = scoringCfg.id;
+  const contestants = scoringCfg.contestants || [];
+  const categories = scoringCfg.categories || [];
+
+  const wb = XLSX.utils.book_new();
+
+  JUDGES.forEach((judge) => {
+    const rows = [];
+    contestants.forEach((contestant) => {
+      const row = { Contestant: contestant.name };
+      categories.forEach((cat) => {
         const map = scores[scoringId]
           && scores[scoringId][cat]
           && scores[scoringId][cat][judge.id];
         const val = map && typeof map[contestant.id] === 'number'
           ? map[contestant.id]
           : '';
-        row[key] = val;
+        row[cat] = val;
       });
+      rows.push(row);
     });
-    rawRows.push(row);
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    let sheetName = `Judge ${judge.id}`;
+    if (judge.name) {
+      sheetName = `${judge.name} - ${judge.id}`.replace(/[\\/?*\[\]]/g, '').substring(0, 31);
+    }
+    XLSX.utils.book_append_sheet(wb, sheet, sheetName);
   });
 
-  const wb = XLSX.utils.book_new();
-  const totalsSheet = XLSX.utils.json_to_sheet(totalsRows);
-  const rawSheet = XLSX.utils.json_to_sheet(rawRows);
-  XLSX.utils.book_append_sheet(wb, totalsSheet, `${scoringCfg.label || scoringId} Totals`);
-  XLSX.utils.book_append_sheet(wb, rawSheet, `${scoringCfg.label || scoringId} Raw`);
-
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  const filename = `jurycarnaval-${scoringId}-${new Date().toISOString().slice(0,10)}.xlsx`;
+  const filename = `jurycarnaval-${scoringId}-judges-${new Date().toISOString().slice(0,10)}.xlsx`;
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

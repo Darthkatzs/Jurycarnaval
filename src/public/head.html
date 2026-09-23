@@ -39,7 +39,10 @@
         <select id="head-scoring-select" style="margin-top:0.25rem;"></select>
       </label>
 
-      <button id="head-export-btn" style="margin-top:0.5rem;">Export naar Excel</button>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+        <button id="head-export-totals-btn" style="flex:1;">Export Totals Excel</button>
+        <button id="head-export-judges-btn" style="flex:1;">Export Judges Excel</button>
+      </div>
 
       <div id="head-totals"></div>
 
@@ -69,7 +72,8 @@
     const loginBtn = document.getElementById('login-btn');
     const loginStatus = document.getElementById('login-status');
     const scoringSelect = document.getElementById('head-scoring-select');
-    const exportBtn = document.getElementById('head-export-btn');
+    const exportTotalsBtn = document.getElementById('head-export-totals-btn');
+    const exportJudgesBtn = document.getElementById('head-export-judges-btn');
     const totalsRoot = document.getElementById('head-totals');
     const headStatusRoot = document.getElementById('head-status-table');
     const headOldPasswordInput = document.getElementById('head-old-password');
@@ -246,14 +250,28 @@
       await loadJudgeStatus(scoringSelect.value);
     });
 
-    exportBtn.addEventListener('click', () => {
+    exportTotalsBtn.addEventListener('click', () => {
       const scoring = scoringSelect.value;
-      let query = '';
       const params = new URLSearchParams();
       if (scoring) params.set('scoring', scoring);
       if (headPassword) params.set('password', headPassword);
       const qs = params.toString();
-      const url = `/head/export.xlsx${qs ? `?${qs}` : ''}`;
+      const url = `/head/export-totals.xlsx${qs ? `?${qs}` : ''}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      a.rel = 'noopener';
+      a.target = '_blank';
+      a.click();
+    });
+
+    exportJudgesBtn.addEventListener('click', () => {
+      const scoring = scoringSelect.value;
+      const params = new URLSearchParams();
+      if (scoring) params.set('scoring', scoring);
+      if (headPassword) params.set('password', headPassword);
+      const qs = params.toString();
+      const url = `/head/export-judges.xlsx${qs ? `?${qs}` : ''}`;
       const a = document.createElement('a');
       a.href = url;
       a.download = '';
