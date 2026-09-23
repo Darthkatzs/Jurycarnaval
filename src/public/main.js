@@ -73,6 +73,13 @@ function allowedScoresForCategory(scoring, category) {
   return (scoring && scoring.allowedScores) || [];
 }
 
+function isZeroedForCategory(scoring, category, contestantId) {
+  return !!(scoring
+    && scoring.zeroed
+    && scoring.zeroed[category]
+    && scoring.zeroed[category][contestantId]);
+}
+
 function status(msg, isError = false) {
   statusEl.textContent = msg || '';
   statusEl.classList.toggle('error', !!isError);
@@ -257,6 +264,18 @@ function renderContestants() {
 
     const scoresDiv = document.createElement('div');
     scoresDiv.className = 'scores';
+
+    if (isZeroedForCategory(scoring, currentCategory, c.id)) {
+      const zeroBtn = document.createElement('button');
+      zeroBtn.type = 'button';
+      zeroBtn.className = 'score-btn zeroed';
+      zeroBtn.textContent = '0';
+      zeroBtn.disabled = true;
+      scoresDiv.appendChild(zeroBtn);
+      row.appendChild(scoresDiv);
+      contestantsEl.appendChild(row);
+      return;
+    }
 
     allowed.forEach((points) => {
       const btn = document.createElement('button');

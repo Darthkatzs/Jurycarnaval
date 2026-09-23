@@ -117,7 +117,29 @@ function normaliseState(inputState, currentConfig) {
     ? nextState.headPassword
     : 'password';
 
+  mergeZeroedOverrides(nextState.zeroed, currentConfig.zeroed);
+
   return nextState;
+}
+
+function mergeZeroedOverrides(targetZeroed, configuredZeroed) {
+  if (!configuredZeroed || typeof configuredZeroed !== 'object') return;
+
+  Object.entries(configuredZeroed).forEach(([scoringId, categories]) => {
+    if (!categories || typeof categories !== 'object') return;
+    if (!targetZeroed[scoringId]) targetZeroed[scoringId] = {};
+
+    Object.entries(categories).forEach(([category, contestants]) => {
+      if (!contestants || typeof contestants !== 'object') return;
+      if (!targetZeroed[scoringId][category]) targetZeroed[scoringId][category] = {};
+
+      Object.entries(contestants).forEach(([contestantId, isZeroed]) => {
+        if (isZeroed) {
+          targetZeroed[scoringId][category][contestantId] = true;
+        }
+      });
+    });
+  });
 }
 
 function getJudges() {
@@ -153,6 +175,16 @@ function getCategoryAllowedScoresPayload(scoringCfg) {
     result[category] = getAllowedScoresForCategory(scoringCfg, category);
   });
   return result;
+}
+
+function isContestantZeroed(scoringId, category, contestantId) {
+  return !!(zeroed[scoringId]
+    && zeroed[scoringId][category]
+    && zeroed[scoringId][category][contestantId]);
+}
+
+function getZeroedPayload(scoringId) {
+  return zeroed[scoringId] || {};
 }
 
 function bindRuntimeState() {
@@ -205,8 +237,15 @@ async function initializeRuntime() {
   const fileState = readJsonFile(STATE_PATH, DEFAULT_STATE);
   const loaded = await storage.load({ config: fileConfig, state: fileState });
   const groupConfigMigration = applyFileBackedGroupConfigIfNeeded(loaded.config, fileConfig);
+  const nextConfig = groupConfigMigration.config;
+  let configChanged = groupConfigMigration.changed;
 
-  config = normaliseConfig(groupConfigMigration.config);
+  if (fileConfig.zeroed && JSON.stringify(nextConfig.zeroed || {}) !== JSON.stringify(fileConfig.zeroed)) {
+    nextConfig.zeroed = fileConfig.zeroed;
+    configChanged = true;
+  }
+
+  config = normaliseConfig(nextConfig);
   persistedState = normaliseState(loaded.state, config);
   bindRuntimeState();
 
@@ -215,6 +254,9 @@ async function initializeRuntime() {
   if (storage.type === 'postgres') {
     if (groupConfigMigration.changed) {
       console.log('Applied file-backed groups scoring config to Postgres seed config');
+    }
+    if (configChanged && !groupConfigMigration.changed) {
+      console.log('Applied file-backed zero overrides to Postgres config');
     }
     await Promise.all([storage.saveConfig(config), storage.saveState(persistedState)]);
   }
@@ -279,6 +321,7 @@ app.get('/api/config', (req, res) => {
       contestants: s.contestants || [],
       allowedScores: (s.allowedScores || [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]).map(Number),
       categoryAllowedScores: getCategoryAllowedScoresPayload(s),
+      zeroed: getZeroedPayload(scoringId),
     };
   }
 
@@ -391,7 +434,8 @@ app.post('/api/done', async (req, res) => {
         && scores[scoringCfg.id][cat]
         && scores[scoringCfg.id][cat][judge.id];
       if (!contestants.length) return true;
-      return !contestants.every((c) => judgeScores && typeof judgeScores[c.id] === 'number');
+      return !contestants.every((c) => isContestantZeroed(scoringCfg.id, cat, c.id)
+        || (judgeScores && typeof judgeScores[c.id] === 'number'));
     });
     if (incomplete.length > 0) {
       return res.status(400).json({
@@ -506,7 +550,8 @@ app.post('/api/lock', async (req, res) => {
   if (wantLocked) {
     // Only allow locking if this judge has scored all contestants in this category.
     const judgeScores = (scores[scoringCfg.id] && scores[scoringCfg.id][category] && scores[scoringCfg.id][category][judge.id]) || {};
-    const missing = (scoringCfg.contestants || []).filter((c) => typeof judgeScores[c.id] !== 'number');
+    const missing = (scoringCfg.contestants || []).filter((c) => !isContestantZeroed(scoringCfg.id, category, c.id)
+      && typeof judgeScores[c.id] !== 'number');
     if (missing.length > 0) {
       return res.status(400).json({
         error: `You must score all groups before locking. Missing: ${missing
@@ -586,7 +631,7 @@ app.post('/api/score', async (req, res) => {
     return res.status(400).json({ error: 'Scores are locked for this category for this judge.' });
   }
 
-  if (zeroed[scoringCfg.id] && zeroed[scoringCfg.id][category] && zeroed[scoringCfg.id][category][contestant.id]) {
+  if (isContestantZeroed(scoringCfg.id, category, contestant.id)) {
     return res.status(400).json({ error: 'This group is set to 0 for this category and cannot be scored.' });
   }
 
@@ -629,9 +674,7 @@ app.get('/head/totals', (req, res) => {
     for (const contestant of scoringCfg.contestants || []) {
       let sum = 0;
       // If zero override is set, this category contributes 0 for this contestant.
-      const isZeroed = zeroed[scoringCfg.id]
-        && zeroed[scoringCfg.id][cat]
-        && zeroed[scoringCfg.id][cat][contestant.id];
+      const isZeroed = isContestantZeroed(scoringCfg.id, cat, contestant.id);
       if (!isZeroed) {
         // scores stored as scores[scoringId][cat][judgeId][contestantId]
         for (const judge of JUDGES) {
@@ -679,7 +722,8 @@ app.get('/admin/status', (req, res) => {
         && scores[scoringCfg.id][cat][judge.id];
       const allScored = contestants.length === 0
         ? false
-        : contestants.every((c) => judgeScores && typeof judgeScores[c.id] === 'number');
+        : contestants.every((c) => isContestantZeroed(scoringCfg.id, cat, c.id)
+          || (judgeScores && typeof judgeScores[c.id] === 'number'));
       const locked = !!(
         locks[scoringCfg.id]
         && locks[scoringCfg.id][cat]
