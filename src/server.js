@@ -808,7 +808,7 @@ app.get('/head/export.xlsx', (req, res) => {
     const row = { Contestant: contestant.name };
     categories.forEach((cat) => {
       JUDGES.forEach((judge) => {
-        const key = `${cat} – Judge ${judge.id}`;
+        const key = `${cat} – ${judge.id}`;
         const map = scores[scoringId]
           && scores[scoringId][cat]
           && scores[scoringId][cat][judge.id];
