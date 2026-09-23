@@ -165,6 +165,14 @@
           14,
           13
         ]
+      },
+      "zeroed": {
+        "Kostumering (afwerking en uitwerking thema)": {
+          "10": true,
+          "12": true,
+          "19": true,
+          "27": true
+        }
       }
     },
     "floats": {

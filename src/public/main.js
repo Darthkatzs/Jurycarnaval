@@ -74,10 +74,10 @@ function allowedScoresForCategory(scoring, category) {
 }
 
 function isZeroedForCategory(scoring, category, contestantId) {
-  return !!(scoring
-    && scoring.zeroed
-    && scoring.zeroed[category]
-    && scoring.zeroed[category][contestantId]);
+  const scoringZeroed = scoring && scoring.zeroed && scoring.zeroed[category];
+  const configZeroed = config && config.zeroed && config.zeroed[currentScoringId] && config.zeroed[currentScoringId][category];
+  return !!((scoringZeroed && scoringZeroed[contestantId])
+    || (configZeroed && configZeroed[contestantId]));
 }
 
 function status(msg, isError = false) {
@@ -257,6 +257,8 @@ function renderContestants() {
   (scoring.contestants || []).forEach((c) => {
     const row = document.createElement('div');
     row.className = 'contestant';
+    const zeroed = isZeroedForCategory(scoring, currentCategory, c.id);
+    if (zeroed) row.classList.add('zeroed');
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = c.name;
@@ -265,7 +267,7 @@ function renderContestants() {
     const scoresDiv = document.createElement('div');
     scoresDiv.className = 'scores';
 
-    if (isZeroedForCategory(scoring, currentCategory, c.id)) {
+    if (zeroed) {
       const zeroBtn = document.createElement('button');
       zeroBtn.type = 'button';
       zeroBtn.className = 'score-btn zeroed';
@@ -309,6 +311,11 @@ function renderContestants() {
 
 async function submitScore(contestantId, points) {
   if (!config || !currentScoringId || !currentJudgeId) return;
+  const scoring = config.scorings[currentScoringId];
+  if (isZeroedForCategory(scoring, currentCategory, contestantId)) {
+    status('Deze groep heeft 0 voor deze categorie en kan niet gescoord worden.', true);
+    return;
+  }
 
   status('Bezig met opslaan...');
 

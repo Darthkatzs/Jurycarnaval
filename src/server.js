@@ -117,7 +117,7 @@ function normaliseState(inputState, currentConfig) {
     ? nextState.headPassword
     : 'password';
 
-  mergeZeroedOverrides(nextState.zeroed, currentConfig.zeroed);
+  mergeZeroedOverrides(nextState.zeroed, collectConfiguredZeroed(currentConfig));
 
   return nextState;
 }
@@ -140,6 +140,21 @@ function mergeZeroedOverrides(targetZeroed, configuredZeroed) {
       });
     });
   });
+}
+
+function collectConfiguredZeroed(currentConfig) {
+  const combined = { ...((currentConfig && currentConfig.zeroed) || {}) };
+  const scorings = (currentConfig && currentConfig.scorings) || {};
+
+  Object.entries(scorings).forEach(([scoringId, scoringCfg]) => {
+    if (!scoringCfg || !scoringCfg.zeroed) return;
+    combined[scoringId] = {
+      ...(combined[scoringId] || {}),
+      ...scoringCfg.zeroed,
+    };
+  });
+
+  return combined;
 }
 
 function getJudges() {
@@ -328,6 +343,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     JUDGES,
     scorings: scoringsPayload,
+    zeroed,
     defaultScoring: config.defaultScoring || SCORING_IDS[0],
   });
 });
