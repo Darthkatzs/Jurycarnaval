@@ -66,6 +66,13 @@ function labelForCategory(cat) {
   return cat;
 }
 
+function allowedScoresForCategory(scoring, category) {
+  if (scoring && scoring.categoryAllowedScores && Array.isArray(scoring.categoryAllowedScores[category])) {
+    return scoring.categoryAllowedScores[category];
+  }
+  return (scoring && scoring.allowedScores) || [];
+}
+
 function status(msg, isError = false) {
   statusEl.textContent = msg || '';
   statusEl.classList.toggle('error', !!isError);
@@ -235,7 +242,7 @@ function renderContestants() {
   const scoring = config.scorings[currentScoringId];
   if (!scoring) return;
 
-  const allowed = scoring.allowedScores;
+  const allowed = allowedScoresForCategory(scoring, currentCategory);
   const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
   const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
   const locked = isLocked(currentScoringId, currentCategory, currentJudgeId);

@@ -48,119 +48,193 @@
   "scorings": {
     "groups": {
       "id": "groups",
-      "label": "Groups",
+      "label": "Groepen",
       "contestants": [
         {
-          "id": 9,
-          "name": "Kloes"
+          "id": 8,
+          "name": "De Splenterbomme"
         },
         {
           "id": 10,
-          "name": "Spartaboys"
+          "name": "De Canarkes"
         },
         {
-          "id": 14,
-          "name": "De Maanblotten"
+          "id": 12,
+          "name": "De Patrontjes"
         },
         {
-          "id": 15,
-          "name": "De Schuimbomme"
-        },
-        {
-          "id": 17,
-          "name": "De Scheve Kleppers"
-        },
-        {
-          "id": 19,
-          "name": "De Families"
-        },
-        {
-          "id": 20,
+          "id": 13,
           "name": "Daring Boys"
         },
         {
+          "id": 15,
+          "name": "De Farildes"
+        },
+        {
+          "id": 16,
+          "name": "De Spartaboys"
+        },
+        {
+          "id": 17,
+          "name": "Jokers"
+        },
+        {
+          "id": 19,
+          "name": "De Fliereflûters"
+        },
+        {
           "id": 21,
-          "name": "De Dweilers"
+          "name": "De Moashpotten"
         },
         {
           "id": 23,
-          "name": "De Vliegmieters"
+          "name": "De Sloebers"
         },
         {
           "id": 24,
-          "name": "De Zwiens"
+          "name": "De Scherpe Kleppers"
         },
         {
-          "id": 26,
-          "name": "De Gommekes"
-        },
-        {
-          "id": 31,
+          "id": 25,
           "name": "Kanong"
         },
         {
-          "id": 35,
+          "id": 27,
           "name": "De Pekkers"
         }
       ],
       "categories": [
-        "entertainment",
-        "kostumering",
-        "carnavalesk"
+        "Carnavalesk en humor",
+        "Kostumering (afwerking en uitwerking thema)",
+        "Entertainment en enthousiasme"
       ],
       "allowedScores": [
+        40,
+        37,
+        34,
+        31,
+        28,
+        25,
+        22,
+        19,
+        16,
         13,
-        12,
-        11,
         10,
-        9,
-        8,
         7,
-        6,
-        5,
-        4,
-        3,
-        2,
-        1
-      ]
+        4
+      ],
+      "categoryAllowedScores": {
+        "Carnavalesk en humor": [
+          40,
+          37,
+          34,
+          31,
+          28,
+          25,
+          22,
+          19,
+          16,
+          13,
+          10,
+          7,
+          4
+        ],
+        "Kostumering (afwerking en uitwerking thema)": [
+          35,
+          32,
+          29,
+          26,
+          23,
+          20,
+          17,
+          14,
+          11
+        ],
+        "Entertainment en enthousiasme": [
+          25,
+          24,
+          23,
+          22,
+          21,
+          20,
+          19,
+          18,
+          17,
+          16,
+          15,
+          14,
+          13
+        ]
+      }
     },
     "floats": {
       "id": "floats",
-      "label": "Floats",
+      "label": "Wagens",
       "contestants": [
         {
-          "id": 1,
-          "name": "De Pasagers"
+          "id": 9,
+          "name": "De Splenterbomme"
         },
         {
-          "id": 2,
-          "name": "De Sparrebos"
+          "id": 11,
+          "name": "De Zeester"
         },
         {
-          "id": 3,
-          "name": "De Maanblotters"
+          "id": 14,
+          "name": "De Farildes"
+        },
+        {
+          "id": 22,
+          "name": "De Sloebers"
+        },
+        {
+          "id": 28,
+          "name": "De Pekkers"
+        },
+        {
+          "id": 29,
+          "name": "d'Echte"
         }
       ],
       "categories": [
-        "entertainment",
-        "kostumering",
-        "carnavalesk"
+        "Carnavalesk en humor",
+        "Opbouw, techniek en afwerking",
+        "Uitbeelding van thema, publiekstrekker"
       ],
       "allowedScores": [
-        13,
-        12,
-        11,
-        10,
-        9,
-        8,
-        7,
-        6,
-        5,
-        4,
-        3,
-        2,
-        1
-      ]
+        40,
+        37,
+        34,
+        31,
+        28,
+        25
+      ],
+      "categoryAllowedScores": {
+        "Carnavalesk en humor": [
+          40,
+          37,
+          34,
+          31,
+          28,
+          25
+        ],
+        "Opbouw, techniek en afwerking": [
+          35,
+          32,
+          29,
+          26,
+          23,
+          20
+        ],
+        "Uitbeelding van thema, publiekstrekker": [
+          25,
+          24,
+          23,
+          22,
+          21,
+          20
+        ]
+      }
     }
   },
   "defaultScoring": "groups"

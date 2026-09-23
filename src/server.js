@@ -138,6 +138,23 @@ function getScoringConfig(scoringId) {
   return { id: effectiveId, ...cfg };
 }
 
+function getAllowedScoresForCategory(scoringCfg, category) {
+  const byCategory = scoringCfg.categoryAllowedScores || {};
+  const categoryScores = Array.isArray(byCategory[category]) ? byCategory[category] : null;
+  const fallbackScores = Array.isArray(scoringCfg.allowedScores) && scoringCfg.allowedScores.length
+    ? scoringCfg.allowedScores
+    : [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  return (categoryScores || fallbackScores).map(Number);
+}
+
+function getCategoryAllowedScoresPayload(scoringCfg) {
+  const result = {};
+  (scoringCfg.categories || []).forEach((category) => {
+    result[category] = getAllowedScoresForCategory(scoringCfg, category);
+  });
+  return result;
+}
+
 function bindRuntimeState() {
   JUDGES = getJudges();
   SCORING_IDS = getScoringIds();
@@ -261,6 +278,7 @@ app.get('/api/config', (req, res) => {
       categories: s.categories || [],
       contestants: s.contestants || [],
       allowedScores: (s.allowedScores || [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]).map(Number),
+      categoryAllowedScores: getCategoryAllowedScoresPayload(s),
     };
   }
 
@@ -555,7 +573,7 @@ app.post('/api/score', async (req, res) => {
   }
   const judge = JUDGES.find((j) => j.id === Number(judgeId));
   const contestant = (scoringCfg.contestants || []).find((c) => c.id === Number(contestantId));
-  const allowedScores = (scoringCfg.allowedScores || [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]).map(Number);
+  const allowedScores = getAllowedScoresForCategory(scoringCfg, category);
 
   if (!judge || !contestant) {
     return res.status(400).json({ error: 'Invalid judge or contestant' });
