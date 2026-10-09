@@ -12,6 +12,13 @@ const statusEl = document.getElementById('status');
 const lockToggleBtn = document.getElementById('lock-toggle');
 const doneToggleBtn = document.getElementById('done-toggle');
 const doneIndicatorEl = document.getElementById('done-indicator');
+const viewCompactBtn = document.getElementById('view-compact');
+const viewButtonsBtn = document.getElementById('view-buttons');
+const scoreSheetBackdrop = document.getElementById('score-sheet-backdrop');
+const scoreSheetTitle = document.getElementById('score-sheet-title');
+const scoreSheetSubtitle = document.getElementById('score-sheet-subtitle');
+const scoreSheetGrid = document.getElementById('score-sheet-grid');
+const scoreSheetCloseBtn = document.getElementById('score-sheet-close');
 
 let config = null;
 let currentScoringId = null;
@@ -24,6 +31,8 @@ let usedScores = {};
 let selectedScores = {};
 // lockState[scoringId][category][judgeId] = boolean
 let lockState = {};
+let scoreViewMode = localStorage.getItem('scoreViewMode') || 'auto';
+let activePickerContestantId = null;
 
 async function loadConfig() {
   const res = await fetch('/api/config');
@@ -101,6 +110,69 @@ function updateDoneIndicator(isDone) {
     doneToggleBtn.textContent = 'Markeer beoordeling als afgewerkt';
     doneToggleBtn.style.background = '#6b7280';
   }
+}
+
+function prefersCompactScores() {
+  if (scoreViewMode === 'compact') return true;
+  if (scoreViewMode === 'buttons') return false;
+  return window.matchMedia && window.matchMedia('(max-width: 520px)').matches;
+}
+
+function setScoreViewMode(mode) {
+  scoreViewMode = mode;
+  localStorage.setItem('scoreViewMode', mode);
+  updateViewToggle();
+  closeScorePicker();
+  renderContestants();
+}
+
+function updateViewToggle() {
+  if (!viewCompactBtn || !viewButtonsBtn) return;
+  const compact = prefersCompactScores();
+  viewCompactBtn.classList.toggle('active', compact);
+  viewCompactBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
+  viewButtonsBtn.classList.toggle('active', !compact);
+  viewButtonsBtn.setAttribute('aria-pressed', compact ? 'false' : 'true');
+}
+
+function closeScorePicker() {
+  activePickerContestantId = null;
+  if (!scoreSheetBackdrop || !scoreSheetGrid) return;
+  scoreSheetBackdrop.classList.remove('open');
+  scoreSheetBackdrop.setAttribute('aria-hidden', 'true');
+  scoreSheetGrid.innerHTML = '';
+}
+
+function openScorePicker(contestant, allowed, used, selected, locked) {
+  if (locked || !scoreSheetBackdrop || !scoreSheetGrid) return;
+  activePickerContestantId = contestant.id;
+  scoreSheetTitle.textContent = 'Score kiezen';
+  scoreSheetSubtitle.textContent = contestant.name;
+  scoreSheetGrid.innerHTML = '';
+
+  allowed.forEach((points) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'score-btn';
+    btn.textContent = points;
+
+    const isSelected = selected[contestant.id] === points;
+    const isUsedByOtherContestant = used.has(points) && !isSelected;
+    if (isUsedByOtherContestant) {
+      btn.classList.add('used');
+      btn.disabled = true;
+      btn.title = 'Deze score is al gebruikt in deze categorie.';
+    }
+    if (isSelected) btn.classList.add('selected');
+
+    btn.addEventListener('click', () => {
+      submitScore(contestant.id, points);
+    });
+    scoreSheetGrid.appendChild(btn);
+  });
+
+  scoreSheetBackdrop.classList.add('open');
+  scoreSheetBackdrop.setAttribute('aria-hidden', 'false');
 }
 
 function repopulateCategories() {
@@ -246,6 +318,7 @@ async function toggleLock() {
 function renderContestants() {
   contestantsEl.innerHTML = '';
   if (!config || !currentScoringId) return;
+  updateViewToggle();
   const scoring = config.scorings[currentScoringId];
   if (!scoring) return;
 
@@ -253,16 +326,51 @@ function renderContestants() {
   const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
   const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
   const locked = isLocked(currentScoringId, currentCategory, currentJudgeId);
+  const compact = prefersCompactScores();
 
   (scoring.contestants || []).forEach((c) => {
     const row = document.createElement('div');
-    row.className = 'contestant';
+    row.className = compact ? 'contestant compact' : 'contestant';
     const zeroed = isZeroedForCategory(scoring, currentCategory, c.id);
     if (zeroed) row.classList.add('zeroed');
+    if (locked) row.classList.add('locked');
 
     const nameSpan = document.createElement('span');
+    nameSpan.className = 'contestant-name';
     nameSpan.textContent = c.name;
     row.appendChild(nameSpan);
+
+    if (compact) {
+      const selectedScore = selected[c.id];
+      const scorePill = document.createElement('span');
+      scorePill.className = 'compact-score';
+      if (zeroed) {
+        scorePill.classList.add('zeroed');
+        scorePill.textContent = '0';
+      } else if (typeof selectedScore === 'number') {
+        scorePill.classList.add('selected');
+        scorePill.textContent = selectedScore;
+      } else {
+        scorePill.textContent = locked ? 'Vergrendeld' : 'Kies score';
+      }
+      row.appendChild(scorePill);
+
+      if (!zeroed && !locked) {
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `Score kiezen voor ${c.name}`);
+        row.addEventListener('click', () => openScorePicker(c, allowed, used, selected, locked));
+        row.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openScorePicker(c, allowed, used, selected, locked);
+          }
+        });
+      }
+
+      contestantsEl.appendChild(row);
+      return;
+    }
 
     const scoresDiv = document.createElement('div');
     scoresDiv.className = 'scores';
@@ -350,6 +458,9 @@ async function submitScore(contestantId, points) {
     used.add(points);
     selected[contestantId] = points;
     status('Opgeslagen');
+    if (activePickerContestantId === contestantId) {
+      closeScorePicker();
+    }
     renderContestants();
   } catch (err) {
     console.error(err);
@@ -394,6 +505,7 @@ async function handleJudgeLogin() {
 scoringSelect.addEventListener('change', async () => {
   currentScoringId = scoringSelect.value;
   status('');
+  closeScorePicker();
   repopulateCategories();
   await refreshLockState();
   await refreshDoneState();
@@ -404,6 +516,7 @@ scoringSelect.addEventListener('change', async () => {
 categorySelect.addEventListener('change', async () => {
   currentCategory = categorySelect.value;
   status('');
+  closeScorePicker();
   await refreshLockState();
   await refreshExistingScores();
   renderContestants();
@@ -416,6 +529,35 @@ lockToggleBtn.addEventListener('click', () => {
 doneToggleBtn.addEventListener('click', () => {
   toggleDone();
 });
+
+if (viewCompactBtn) {
+  viewCompactBtn.addEventListener('click', () => setScoreViewMode('compact'));
+}
+
+if (viewButtonsBtn) {
+  viewButtonsBtn.addEventListener('click', () => setScoreViewMode('buttons'));
+}
+
+if (scoreSheetCloseBtn) {
+  scoreSheetCloseBtn.addEventListener('click', closeScorePicker);
+}
+
+if (scoreSheetBackdrop) {
+  scoreSheetBackdrop.addEventListener('click', (event) => {
+    if (event.target === scoreSheetBackdrop) closeScorePicker();
+  });
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeScorePicker();
+});
+
+if (window.matchMedia) {
+  const compactQuery = window.matchMedia('(max-width: 520px)');
+  compactQuery.addEventListener('change', () => {
+    if (scoreViewMode === 'auto') renderContestants();
+  });
+}
 
 judgeLoginBtn.addEventListener('click', () => {
   handleJudgeLogin();

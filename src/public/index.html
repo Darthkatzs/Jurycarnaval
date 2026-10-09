@@ -20,13 +20,31 @@
       color: #e5e7eb;
       display: block;
     }
+    .view-toggle { display: flex; margin: 0 0 0.75rem; padding: 0.25rem; border: 1px solid #1f2937; border-radius: 999px; background: #030712; gap: 0.25rem; }
+    .view-toggle button { flex: 1; padding: 0.35rem 0.5rem; border: 0; border-radius: 999px; background: transparent; color: #9ca3af; font-size: 0.8rem; }
+    .view-toggle button.active { background: #4f46e5; color: #fff; }
     .contestant { display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px solid #111827; font-size: 0.9rem; }
+    .contestant-name { min-width: 0; }
     .scores { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
     .score-btn { border-radius: 999px; padding: 0.2rem 0.5rem; border: 1px solid #4b5563; background: #020617; color: #e5e7eb; font-size: 0.75rem; }
     .score-btn.used { background: #374151; color: #9ca3af; border-color: #374151; }
     .score-btn.selected { background: #4f46e5; border-color: #4f46e5; }
     .score-btn.zeroed { background: #111827; color: #f97373; border-color: #7f1d1d; opacity: 1; }
     .contestant.zeroed span { color: #9ca3af; }
+    .contestant.compact { gap: 0.75rem; cursor: pointer; }
+    .contestant.compact:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+    .contestant.compact.locked, .contestant.compact.zeroed { cursor: default; }
+    .compact-score { margin-left: auto; padding: 0.22rem 0.65rem; border-radius: 999px; border: 1px solid #4b5563; color: #9ca3af; background: #030712; font-size: 0.8rem; white-space: nowrap; }
+    .compact-score.selected { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+    .compact-score.zeroed { background: #111827; color: #f97373; border-color: #7f1d1d; }
+    .score-sheet-backdrop { position: fixed; inset: 0; display: none; align-items: flex-end; justify-content: center; background: rgba(2, 6, 23, 0.72); z-index: 20; }
+    .score-sheet-backdrop.open { display: flex; }
+    .score-sheet { width: min(100% - 1rem, 460px); margin: 0.5rem; padding: 1rem; border: 1px solid #1f2937; border-radius: 1rem 1rem 0.75rem 0.75rem; background: #020617; box-shadow: 0 -20px 50px rgba(0,0,0,0.55); }
+    .score-sheet h2 { margin: 0 0 0.25rem; font-size: 1rem; }
+    .score-sheet p { margin: 0 0 0.75rem; color: #9ca3af; font-size: 0.85rem; }
+    .score-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+    .score-sheet-grid .score-btn { min-height: 2.75rem; font-size: 1rem; }
+    .score-sheet-close { margin-top: 0.75rem; width: 100%; padding: 0.5rem 0.75rem; border: 0; border-radius: 0.5rem; background: #374151; color: #e5e7eb; }
     .status { margin-top: 0.75rem; font-size: 0.85rem; color: #9ca3af; min-height: 1.2rem; }
     .status.error { color: #f97373; }
     .done-indicator { margin-top: 0.25rem; font-size: 0.8rem; color: #9ca3af; }
@@ -40,6 +58,13 @@
       .contestant > span:first-child { flex: 0 0 8.5rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .scores { flex: 1 1 auto; flex-wrap: nowrap; gap: 0.18rem; justify-content: flex-end; overflow-x: auto; padding-bottom: 0.05rem; }
       .score-btn { flex: 0 0 auto; min-width: 1.72rem; padding: 0.14rem 0.28rem; font-size: 0.68rem; }
+    }
+    @media (max-width: 520px) {
+      .contestant { align-items: stretch; }
+      .contestant:not(.compact) { flex-direction: column; gap: 0.35rem; }
+      .contestant:not(.compact) .scores { justify-content: flex-start; }
+      .contestant.compact { align-items: center; min-height: 2.75rem; }
+      .contestant.compact .contestant-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     }
   </style>
 </head>
@@ -79,6 +104,11 @@
       <button type="button" id="done-toggle" style="margin-bottom:0.75rem;width:100%;padding:0.35rem 0.6rem;border-radius:0.5rem;border:none;background:#6b7280;color:#e5e7eb;font-size:0.85rem;">Markeer beoordeling als afgewerkt</button>
       <div id="done-indicator" class="done-indicator"></div>
 
+      <div class="view-toggle" role="group" aria-label="Scoreweergave kiezen">
+        <button type="button" id="view-compact" aria-pressed="false">Compact</button>
+        <button type="button" id="view-buttons" aria-pressed="false">Knoppen</button>
+      </div>
+
       <div id="contestants"></div>
 
       <div id="status" class="status"></div>
@@ -87,6 +117,15 @@
     </section>
   </main>
 
-  <script src="/main.js?v=zeroed-rows-2"></script>
+  <div id="score-sheet-backdrop" class="score-sheet-backdrop" aria-hidden="true">
+    <div class="score-sheet" role="dialog" aria-modal="true" aria-labelledby="score-sheet-title">
+      <h2 id="score-sheet-title">Score kiezen</h2>
+      <p id="score-sheet-subtitle"></p>
+      <div id="score-sheet-grid" class="score-sheet-grid"></div>
+      <button type="button" id="score-sheet-close" class="score-sheet-close">Annuleren</button>
+    </div>
+  </div>
+
+  <script src="/main.js?v=mobile-score-picker-1"></script>
 </body>
 </html>
