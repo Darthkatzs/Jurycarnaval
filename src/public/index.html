@@ -30,6 +30,7 @@
     .score-btn.used { background: #374151; color: #9ca3af; border-color: #374151; }
     .score-btn.selected { background: #4f46e5; border-color: #4f46e5; }
     .score-btn.zeroed { background: #111827; color: #f97373; border-color: #7f1d1d; opacity: 1; }
+    .score-clear-btn { border-radius: 999px; padding: 0.2rem 0.55rem; border: 1px solid #7f1d1d; background: #450a0a; color: #fecaca; font-size: 0.75rem; }
     .contestant.zeroed span { color: #9ca3af; }
     .contestant.compact { gap: 0.75rem; cursor: pointer; }
     .contestant.compact:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
@@ -44,6 +45,7 @@
     .score-sheet p { margin: 0 0 0.75rem; color: #9ca3af; font-size: 0.85rem; }
     .score-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
     .score-sheet-grid .score-btn { min-height: 2.75rem; font-size: 1rem; }
+    .score-sheet-grid .score-clear-btn { grid-column: 1 / -1; min-height: 2.5rem; font-size: 0.95rem; }
     .score-sheet-close { margin-top: 0.75rem; width: 100%; padding: 0.5rem 0.75rem; border: 0; border-radius: 0.5rem; background: #374151; color: #e5e7eb; }
     .status { margin-top: 0.75rem; font-size: 0.85rem; color: #9ca3af; min-height: 1.2rem; }
     .status.error { color: #f97373; }

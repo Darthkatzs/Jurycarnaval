@@ -671,6 +671,44 @@ app.post('/api/score', async (req, res) => {
   return res.json({ ok: true });
 });
 
+// API to clear a score for one judge / category / contestant within a scoring.
+// This lets judges recover when every available score has already been used.
+app.delete('/api/score', async (req, res) => {
+  const { scoring, category, judgeId, contestantId } = req.body || {};
+
+  let scoringCfg;
+  try {
+    scoringCfg = getScoringConfig(scoring);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (!scoringCfg.categories.includes(category)) {
+    return res.status(400).json({ error: 'Invalid category' });
+  }
+  const judge = JUDGES.find((j) => j.id === Number(judgeId));
+  const contestant = (scoringCfg.contestants || []).find((c) => c.id === Number(contestantId));
+
+  if (!judge || !contestant) {
+    return res.status(400).json({ error: 'Invalid judge or contestant' });
+  }
+
+  if (locks[scoringCfg.id] && locks[scoringCfg.id][category] && locks[scoringCfg.id][category][judge.id]) {
+    return res.status(400).json({ error: 'Scores are locked for this category for this judge.' });
+  }
+
+  const usedForJudge = scores[scoringCfg.id]
+    && scores[scoringCfg.id][category]
+    && scores[scoringCfg.id][category][judge.id];
+
+  if (usedForJudge && Object.prototype.hasOwnProperty.call(usedForJudge, contestant.id)) {
+    delete usedForJudge[contestant.id];
+    if (!(await saveState(res))) return;
+  }
+
+  return res.json({ ok: true });
+});
+
 // API to get totals by category + overall for a scoring (head judge, password protected)
 app.get('/head/totals', (req, res) => {
   if (!checkHeadPassword(req, res)) return;

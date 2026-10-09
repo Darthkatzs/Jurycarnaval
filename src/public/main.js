@@ -171,6 +171,17 @@ function openScorePicker(contestant, allowed, used, selected, locked) {
     scoreSheetGrid.appendChild(btn);
   });
 
+  if (typeof selected[contestant.id] === 'number') {
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'score-clear-btn';
+    clearBtn.textContent = 'Score verwijderen';
+    clearBtn.addEventListener('click', () => {
+      clearScore(contestant.id);
+    });
+    scoreSheetGrid.appendChild(clearBtn);
+  }
+
   scoreSheetBackdrop.classList.add('open');
   scoreSheetBackdrop.setAttribute('aria-hidden', 'false');
 }
@@ -412,6 +423,18 @@ function renderContestants() {
       scoresDiv.appendChild(btn);
     });
 
+    if (typeof selected[c.id] === 'number' && !locked) {
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'score-clear-btn';
+      clearBtn.textContent = 'Wis';
+      clearBtn.title = 'Score verwijderen zodat je opnieuw kunt kiezen';
+      clearBtn.addEventListener('click', () => {
+        clearScore(c.id);
+      });
+      scoresDiv.appendChild(clearBtn);
+    }
+
     row.appendChild(scoresDiv);
     contestantsEl.appendChild(row);
   });
@@ -465,6 +488,49 @@ async function submitScore(contestantId, points) {
   } catch (err) {
     console.error(err);
     status('Netwerkfout bij opslaan van score', true);
+  }
+}
+
+async function clearScore(contestantId) {
+  if (!config || !currentScoringId || !currentJudgeId) return;
+  const scoring = config.scorings[currentScoringId];
+  if (isZeroedForCategory(scoring, currentCategory, contestantId)) return;
+
+  status('Score verwijderen...');
+
+  try {
+    const res = await fetch('/api/score', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scoring: currentScoringId,
+        category: currentCategory,
+        judgeId: currentJudgeId,
+        contestantId,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      status(data.error || `Fout ${res.status}`, true);
+      return;
+    }
+
+    const used = getUsedScoresSet(currentScoringId, currentCategory, currentJudgeId);
+    const selected = getSelectedScores(currentScoringId, currentCategory, currentJudgeId);
+    const previous = selected[contestantId];
+    if (typeof previous === 'number') used.delete(previous);
+    delete selected[contestantId];
+
+    status('Score verwijderd');
+    if (activePickerContestantId === contestantId) {
+      closeScorePicker();
+    }
+    renderContestants();
+  } catch (err) {
+    console.error(err);
+    status('Netwerkfout bij verwijderen van score', true);
   }
 }
 
