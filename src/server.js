@@ -209,7 +209,7 @@ function buildTotalsRows(scoringCfg) {
   const categories = scoringCfg.categories || [];
 
   return contestants.map((contestant) => {
-    const row = { Contestant: contestant.name };
+    const row = { Startnummer: contestant.id, Contestant: contestant.name };
     let overall = 0;
     for (const cat of categories) {
       let sum = 0;
