@@ -198,6 +198,40 @@ function isContestantZeroed(scoringId, category, contestantId) {
     && zeroed[scoringId][category][contestantId]);
 }
 
+function safeSheetName(name) {
+  const cleaned = String(name || 'Sheet').replace(/[\\/?*\[\]:]/g, '').trim() || 'Sheet';
+  return cleaned.substring(0, 31);
+}
+
+function buildTotalsRows(scoringCfg) {
+  const scoringId = scoringCfg.id;
+  const contestants = scoringCfg.contestants || [];
+  const categories = scoringCfg.categories || [];
+
+  return contestants.map((contestant) => {
+    const row = { Contestant: contestant.name };
+    let overall = 0;
+    for (const cat of categories) {
+      let sum = 0;
+      const isZeroed = isContestantZeroed(scoringId, cat, contestant.id);
+      if (!isZeroed) {
+        for (const judge of JUDGES) {
+          const map = scores[scoringId]
+            && scores[scoringId][cat]
+            && scores[scoringId][cat][judge.id];
+          if (map && typeof map[contestant.id] === 'number') {
+            sum += map[contestant.id];
+          }
+        }
+      }
+      row[cat] = sum;
+      overall += sum;
+    }
+    row.Overall = overall;
+    return row;
+  });
+}
+
 function getZeroedPayload(scoringId) {
   return zeroed[scoringId] || {};
 }
@@ -797,53 +831,30 @@ app.get('/admin/status', (req, res) => {
   });
 });
 
-// Head judge export: Excel with totals for a scoring (password protected)
+// Head judge export: one Excel workbook with a totals sheet per scoring (password protected)
 app.get('/head/export-totals.xlsx', (req, res) => {
   if (!checkHeadPassword(req, res)) return;
 
-  const { scoring } = req.query || {};
-  let scoringCfg;
-  try {
-    scoringCfg = getScoringConfig(scoring);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-
-  const scoringId = scoringCfg.id;
-  const contestants = scoringCfg.contestants || [];
-  const categories = scoringCfg.categories || [];
-
-  // Build totals sheet data
-  const totalsRows = [];
-  for (const contestant of contestants) {
-    const row = { Contestant: contestant.name };
-    let overall = 0;
-    for (const cat of categories) {
-      let sum = 0;
-      const isZeroed = isContestantZeroed(scoringId, cat, contestant.id);
-      if (!isZeroed) {
-        for (const judge of JUDGES) {
-          const map = scores[scoringId]
-            && scores[scoringId][cat]
-            && scores[scoringId][cat][judge.id];
-          if (map && typeof map[contestant.id] === 'number') {
-            sum += map[contestant.id];
-          }
-        }
-      }
-      row[cat] = sum;
-      overall += sum;
-    }
-    row.Overall = overall;
-    totalsRows.push(row);
-  }
-
   const wb = XLSX.utils.book_new();
-  const totalsSheet = XLSX.utils.json_to_sheet(totalsRows);
-  XLSX.utils.book_append_sheet(wb, totalsSheet, `${scoringCfg.label || scoringId} Totals`);
+  const usedSheetNames = new Set();
+
+  SCORING_IDS.forEach((scoringId) => {
+    const scoringCfg = getScoringConfig(scoringId);
+    const totalsRows = buildTotalsRows(scoringCfg);
+    const totalsSheet = XLSX.utils.json_to_sheet(totalsRows);
+    const baseSheetName = safeSheetName(scoringCfg.label || scoringId);
+    let sheetName = baseSheetName;
+    let suffix = 2;
+    while (usedSheetNames.has(sheetName)) {
+      sheetName = safeSheetName(`${baseSheetName} ${suffix}`);
+      suffix += 1;
+    }
+    usedSheetNames.add(sheetName);
+    XLSX.utils.book_append_sheet(wb, totalsSheet, sheetName);
+  });
 
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  const filename = `jurycarnaval-${scoringId}-totals-${new Date().toISOString().slice(0,10)}.xlsx`;
+  const filename = `jurycarnaval-totals-${new Date().toISOString().slice(0,10)}.xlsx`;
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
