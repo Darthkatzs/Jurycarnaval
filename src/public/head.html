@@ -81,6 +81,8 @@
     const headConfirmPasswordInput = document.getElementById('head-confirm-password');
     const headChangeBtn = document.getElementById('head-change-btn');
     const headPasswordStatus = document.getElementById('head-password-status');
+    let latestTotalsRequest = 0;
+    let latestStatusRequest = 0;
 
     function setLoginStatus(msg, isError) {
       loginStatus.textContent = msg || '';
@@ -127,21 +129,23 @@
       });
       const initial = cfg.defaultScoring || Object.keys(scorings)[0];
       if (initial) scoringSelect.value = initial;
-      await loadHeadTotals();
-      await loadJudgeStatus(scoringSelect.value);
     }
 
-    async function loadHeadTotals() {
-      const scoring = scoringSelect.value;
+    async function loadHeadTotals(scoring = scoringSelect.value) {
+      const requestId = ++latestTotalsRequest;
       const query = scoring ? `?scoring=${encodeURIComponent(scoring)}` : '';
+      totalsRoot.textContent = 'Totalen laden...';
       const res = await fetch(`/head/totals${query}`, {
         headers: { 'X-Head-Password': headPassword },
+        cache: 'no-store',
       });
+      if (requestId !== latestTotalsRequest || scoring !== scoringSelect.value) return;
       if (!res.ok) {
         totalsRoot.textContent = 'Failed to load totals (check password).';
         return;
       }
       const data = await res.json();
+      if (requestId !== latestTotalsRequest || data.scoring !== scoringSelect.value) return;
       totalsRoot.innerHTML = '';
 
       const labelForCategory = (cat) => {
@@ -205,6 +209,14 @@
       totalsRoot.appendChild(tableOverall);
     }
 
+    async function loadCurrentJudgeStatus(scoring = scoringSelect.value) {
+      const requestId = ++latestStatusRequest;
+      await loadJudgeStatus(scoring);
+      if (requestId !== latestStatusRequest || scoring !== scoringSelect.value) {
+        await loadJudgeStatus(scoringSelect.value);
+      }
+    }
+
     async function tryLoginWithPassword(pwd) {
       if (!pwd) {
         setLoginStatus('Please enter a password.', true);
@@ -228,8 +240,8 @@
         headContent.style.display = 'block';
         setLoginStatus('');
         storeHeadPassword(headPassword);
-        await loadHeadTotals();
-        await loadJudgeStatus(scoringSelect.value);
+        await loadHeadTotals(scoringSelect.value);
+        await loadCurrentJudgeStatus(scoringSelect.value);
         return true;
       } catch (err) {
         console.error(err);
@@ -246,8 +258,11 @@
     });
 
     scoringSelect.addEventListener('change', async () => {
-      await loadHeadTotals();
-      await loadJudgeStatus(scoringSelect.value);
+      const scoring = scoringSelect.value;
+      await Promise.all([
+        loadHeadTotals(scoring),
+        loadCurrentJudgeStatus(scoring),
+      ]);
     });
 
     exportTotalsBtn.addEventListener('click', () => {

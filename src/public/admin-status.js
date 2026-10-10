@@ -1,13 +1,15 @@
 async function loadJudgeStatus(scoringId) {
   const query = scoringId ? `?scoring=${encodeURIComponent(scoringId)}` : '';
+  const root = document.getElementById('status-table') || document.getElementById('head-status-table');
+  if (!root) return;
+  root.dataset.scoringRequest = scoringId || '';
   const res = await fetch(`/admin/status${query}`);
   if (!res.ok) {
     console.error('Failed to load status');
     return;
   }
   const data = await res.json();
-  const root = document.getElementById('status-table') || document.getElementById('head-status-table');
-  if (!root) return;
+  if (root.dataset.scoringRequest !== (data.scoring || scoringId || '')) return;
 
   const categories = data.categories || [];
   const judges = data.judges || [];
