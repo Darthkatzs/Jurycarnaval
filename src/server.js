@@ -232,6 +232,39 @@ function buildTotalsRows(scoringCfg) {
   });
 }
 
+function buildJudgeRows(scoringCfg, judge) {
+  const scoringId = scoringCfg.id;
+  const contestants = scoringCfg.contestants || [];
+  const categories = scoringCfg.categories || [];
+
+  return contestants.map((contestant) => {
+    const row = { Contestant: contestant.name };
+    categories.forEach((cat) => {
+      const map = scores[scoringId]
+        && scores[scoringId][cat]
+        && scores[scoringId][cat][judge.id];
+      const val = map && typeof map[contestant.id] === 'number'
+        ? map[contestant.id]
+        : '';
+      row[cat] = val;
+    });
+    return row;
+  });
+}
+
+function appendUniqueSheet(wb, sheet, desiredName, usedSheetNames) {
+  const baseSheetName = safeSheetName(desiredName);
+  let sheetName = baseSheetName;
+  let suffix = 2;
+  while (usedSheetNames.has(sheetName)) {
+    const suffixText = ` ${suffix}`;
+    sheetName = safeSheetName(`${baseSheetName.substring(0, 31 - suffixText.length)}${suffixText}`);
+    suffix += 1;
+  }
+  usedSheetNames.add(sheetName);
+  XLSX.utils.book_append_sheet(wb, sheet, sheetName);
+}
+
 function getZeroedPayload(scoringId) {
   return zeroed[scoringId] || {};
 }
@@ -842,15 +875,7 @@ app.get('/head/export-totals.xlsx', (req, res) => {
     const scoringCfg = getScoringConfig(scoringId);
     const totalsRows = buildTotalsRows(scoringCfg);
     const totalsSheet = XLSX.utils.json_to_sheet(totalsRows);
-    const baseSheetName = safeSheetName(scoringCfg.label || scoringId);
-    let sheetName = baseSheetName;
-    let suffix = 2;
-    while (usedSheetNames.has(sheetName)) {
-      sheetName = safeSheetName(`${baseSheetName} ${suffix}`);
-      suffix += 1;
-    }
-    usedSheetNames.add(sheetName);
-    XLSX.utils.book_append_sheet(wb, totalsSheet, sheetName);
+    appendUniqueSheet(wb, totalsSheet, scoringCfg.label || scoringId, usedSheetNames);
   });
 
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
@@ -861,50 +886,27 @@ app.get('/head/export-totals.xlsx', (req, res) => {
   res.send(buffer);
 });
 
-// Head judge export: Excel with a sheet per judge (password protected)
+// Head judge export: one Excel workbook with a sheet per judge per scoring (password protected)
 app.get('/head/export-judges.xlsx', (req, res) => {
   if (!checkHeadPassword(req, res)) return;
 
-  const { scoring } = req.query || {};
-  let scoringCfg;
-  try {
-    scoringCfg = getScoringConfig(scoring);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-
-  const scoringId = scoringCfg.id;
-  const contestants = scoringCfg.contestants || [];
-  const categories = scoringCfg.categories || [];
-
   const wb = XLSX.utils.book_new();
+  const usedSheetNames = new Set();
 
-  JUDGES.forEach((judge) => {
-    const rows = [];
-    contestants.forEach((contestant) => {
-      const row = { Contestant: contestant.name };
-      categories.forEach((cat) => {
-        const map = scores[scoringId]
-          && scores[scoringId][cat]
-          && scores[scoringId][cat][judge.id];
-        const val = map && typeof map[contestant.id] === 'number'
-          ? map[contestant.id]
-          : '';
-        row[cat] = val;
-      });
-      rows.push(row);
+  SCORING_IDS.forEach((scoringId) => {
+    const scoringCfg = getScoringConfig(scoringId);
+    const scoringLabel = scoringCfg.label || scoringId;
+
+    JUDGES.forEach((judge) => {
+      const rows = buildJudgeRows(scoringCfg, judge);
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const judgeLabel = judge.name || `Judge ${judge.id}`;
+      appendUniqueSheet(wb, sheet, `${judgeLabel} ${scoringLabel}`, usedSheetNames);
     });
-
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    let sheetName = `Judge ${judge.id}`;
-    if (judge.name) {
-      sheetName = `${judge.name} - ${judge.id}`.replace(/[\\/?*\[\]]/g, '').substring(0, 31);
-    }
-    XLSX.utils.book_append_sheet(wb, sheet, sheetName);
   });
 
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  const filename = `jurycarnaval-${scoringId}-judges-${new Date().toISOString().slice(0,10)}.xlsx`;
+  const filename = `jurycarnaval-judges-${new Date().toISOString().slice(0,10)}.xlsx`;
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

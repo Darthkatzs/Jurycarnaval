@@ -32,7 +32,7 @@
 
     <section id="head-content" style="display:none;">
       <h2>Scores &amp; status</h2>
-      <p style="font-size:0.85rem;color:#9ca3af;">Kies een beoordeling om totalen en voortgang per jurylid te zien. Gebruik Export Totalen Excel om één bestand met aparte sheets voor groepen en wagens te downloaden.</p>
+      <p style="font-size:0.85rem;color:#9ca3af;">Kies een beoordeling om totalen en voortgang per jurylid te zien. De Excel-exports downloaden telkens één bestand met aparte sheets voor groepen en wagens.</p>
 
       <label style="display:block;margin-top:0.5rem;font-size:0.85rem;">
         Beoordeling
@@ -41,7 +41,7 @@
 
       <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
         <button id="head-export-totals-btn" style="flex:1;">Export Totalen Excel</button>
-        <button id="head-export-judges-btn" style="flex:1;">Export Judges Excel</button>
+        <button id="head-export-judges-btn" style="flex:1;">Export Juryleden Excel</button>
       </div>
 
       <div id="head-totals"></div>
@@ -279,9 +279,7 @@
     });
 
     exportJudgesBtn.addEventListener('click', () => {
-      const scoring = scoringSelect.value;
       const params = new URLSearchParams();
-      if (scoring) params.set('scoring', scoring);
       if (headPassword) params.set('password', headPassword);
       const qs = params.toString();
       const url = `/head/export-judges.xlsx${qs ? `?${qs}` : ''}`;
